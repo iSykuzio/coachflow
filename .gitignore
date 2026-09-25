@@ -1,0 +1,18 @@
+node_modules
+.next
+.env
+.env.local
+.vercel
+*.log
+.DS_Store
+
+# Local duplicate/backup copies
+* copy.*
+* copy/
+.env copy.local
+
+*.tsbuildinfo
+.gitignore copy
+
+# Supabase local CLI files
+supabase/.temp/
