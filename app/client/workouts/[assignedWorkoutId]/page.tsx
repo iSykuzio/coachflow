@@ -80,12 +80,22 @@ export default async function ClientAssignedWorkoutPage({
     .maybeSingle()
     .overrideTypes<WorkoutRow | null, { merge: false }>();
 
-  const { data: lines } = await supabase
+  const { data: lines, error: linesError } = await supabase
     .from("workout_exercises")
     .select("id, order_index, sets, reps, weight, rest_seconds, notes, exercise_id")
     .eq("workout_id", assignment.workout_id)
     .order("order_index")
     .overrideTypes<LineRow[], { merge: false }>();
+
+  if (linesError) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+          We couldn’t load the exercises on this workout.
+        </CardContent>
+      </Card>
+    );
+  }
 
   const exerciseIds = [...new Set((lines ?? []).map((line) => line.exercise_id))];
   const exerciseMap = new Map<string, string>();
