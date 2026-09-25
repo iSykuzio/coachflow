@@ -556,6 +556,38 @@ export type Database = {
           trainer_name: string
         }[]
       }
+      assign_workout: {
+        Args: {
+          p_client_id: string
+          p_due_date?: string | null
+          p_workout_id: string
+        }
+        Returns: {
+          assigned_date: string
+          client_id: string
+          created_at: string
+          due_date: string | null
+          id: string
+          status: string
+          trainer_id: string
+          workout_id: string
+        }
+      }
+      complete_workout_session: {
+        Args: { p_session_id: string }
+        Returns: undefined
+      }
+      start_or_get_workout_session: {
+        Args: { p_assigned_workout_id: string }
+        Returns: {
+          assigned_workout_id: string
+          client_id: string
+          completed_at: string | null
+          id: string
+          started_at: string
+          status: string
+        }
+      }
     }
     Enums: {
       [_ in never]: never

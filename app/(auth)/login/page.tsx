@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { homeForRole, safeNextPath } from "@/lib/auth/home-path";
 import { loginSchema } from "@/lib/validations/auth";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -52,7 +53,7 @@ function LoginForm() {
 
     setLoading(true);
     const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data: signedIn, error: signInError } = await supabase.auth.signInWithPassword({
       email: parsed.data.email,
       password: parsed.data.password,
     });
@@ -63,7 +64,14 @@ function LoginForm() {
       return;
     }
 
-    router.push(searchParams.get("next") || "/");
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", signedIn.user?.id ?? "")
+      .maybeSingle();
+
+    const role = profile?.role ?? null;
+    router.push(safeNextPath(searchParams.get("next"), role) ?? homeForRole(role));
     router.refresh();
   }
 

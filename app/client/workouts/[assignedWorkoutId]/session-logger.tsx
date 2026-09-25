@@ -1,0 +1,229 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export type LoggerLine = {
+  id: string;
+  name: string;
+  sets: number;
+  reps: string;
+  weight: string | null;
+  rest_seconds: number | null;
+  notes: string | null;
+};
+
+export type LoggerSet = {
+  workout_exercise_id: string;
+  set_number: number;
+  reps: number | null;
+  weight: number | null;
+  notes: string | null;
+};
+
+export function SessionLogger({
+  assignmentId,
+  sessionId,
+  completed,
+  lines,
+  logs,
+}: {
+  assignmentId: string;
+  sessionId: string | null;
+  completed: boolean;
+  lines: LoggerLine[];
+  logs: LoggerSet[];
+}) {
+  const router = useRouter();
+  const [activeSessionId, setActiveSessionId] = useState(sessionId);
+  const [error, setError] = useState<string | null>(null);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [completing, setCompleting] = useState(false);
+  const [done, setDone] = useState(completed);
+
+  const logMap = useMemo(() => {
+    const map = new Map<string, LoggerSet>();
+    for (const log of logs) {
+      map.set(`${log.workout_exercise_id}:${log.set_number}`, log);
+    }
+    return map;
+  }, [logs]);
+
+  async function ensureSession() {
+    if (activeSessionId) return activeSessionId;
+    const supabase = createClient();
+    const { data, error: startError } = await supabase.rpc("start_or_get_workout_session", {
+      p_assigned_workout_id: assignmentId,
+    });
+    if (startError || !data) {
+      throw new Error(startError?.message ?? "Could not start session");
+    }
+    const id = (data as { id: string }).id;
+    setActiveSessionId(id);
+    return id;
+  }
+
+  async function saveSet(
+    line: LoggerLine,
+    setNumber: number,
+    reps: string,
+    weight: string,
+    notes: string
+  ) {
+    setError(null);
+    const key = `${line.id}:${setNumber}`;
+    setSavingKey(key);
+    try {
+      const session = await ensureSession();
+      const supabase = createClient();
+      const repsValue = reps.trim() === "" ? null : Number(reps);
+      const weightValue = weight.trim() === "" ? null : Number(weight);
+      const { error: upsertError } = await supabase.from("set_logs").upsert(
+        {
+          workout_session_id: session,
+          workout_exercise_id: line.id,
+          set_number: setNumber,
+          reps: Number.isFinite(repsValue as number) ? (repsValue as number) : null,
+          weight: Number.isFinite(weightValue as number) ? (weightValue as number) : null,
+          notes: notes.trim() || null,
+          completed_at: new Date().toISOString(),
+        },
+        { onConflict: "workout_session_id,workout_exercise_id,set_number" }
+      );
+      if (upsertError) {
+        setError("Could not save that set. Run the latest database migration if this keeps failing.");
+        return;
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start this workout.");
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  async function completeSession() {
+    setError(null);
+    setCompleting(true);
+    try {
+      const session = await ensureSession();
+      const supabase = createClient();
+      const { error: completeError } = await supabase.rpc("complete_workout_session", {
+        p_session_id: session,
+      });
+      if (completeError) {
+        setError("Could not complete this workout. Please try again.");
+        return;
+      }
+      setDone(true);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not complete this workout.");
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
+      )}
+
+      {lines.map((line) => (
+        <Card key={line.id}>
+          <CardContent className="space-y-4 pt-6">
+            <div>
+              <p className="font-medium text-foreground">{line.name}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Prescribed: {line.sets} × {line.reps}
+                {line.weight ? ` · ${line.weight}` : ""}
+                {line.rest_seconds != null ? ` · ${line.rest_seconds}s rest` : ""}
+              </p>
+              {line.notes && <p className="mt-2 text-sm text-muted-foreground">{line.notes}</p>}
+            </div>
+
+            <div className="space-y-3">
+              {Array.from({ length: line.sets }, (_, index) => {
+                const setNumber = index + 1;
+                const existing = logMap.get(`${line.id}:${setNumber}`);
+                return (
+                  <SetRow
+                    key={setNumber}
+                    setNumber={setNumber}
+                    defaultReps={existing?.reps?.toString() ?? ""}
+                    defaultWeight={existing?.weight?.toString() ?? ""}
+                    defaultNotes={existing?.notes ?? ""}
+                    disabled={done}
+                    saving={savingKey === `${line.id}:${setNumber}`}
+                    onSave={(reps, weight, notes) => saveSet(line, setNumber, reps, weight, notes)}
+                  />
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+
+      <div className="flex justify-end">
+        <Button type="button" onClick={completeSession} disabled={done || completing}>
+          {done ? "Completed" : completing ? "Completing..." : "Complete workout"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SetRow({
+  setNumber,
+  defaultReps,
+  defaultWeight,
+  defaultNotes,
+  disabled,
+  saving,
+  onSave,
+}: {
+  setNumber: number;
+  defaultReps: string;
+  defaultWeight: string;
+  defaultNotes: string;
+  disabled: boolean;
+  saving: boolean;
+  onSave: (reps: string, weight: string, notes: string) => void;
+}) {
+  const [reps, setReps] = useState(defaultReps);
+  const [weight, setWeight] = useState(defaultWeight);
+  const [notes, setNotes] = useState(defaultNotes);
+
+  return (
+    <div className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-[3rem_1fr_1fr_1fr_auto] sm:items-end">
+      <p className="text-sm font-medium text-muted-foreground">Set {setNumber}</p>
+      <div className="space-y-1">
+        <Label className="text-xs">Reps</Label>
+        <Input value={reps} onChange={(e) => setReps(e.target.value)} disabled={disabled} />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Weight</Label>
+        <Input value={weight} onChange={(e) => setWeight(e.target.value)} disabled={disabled} />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Notes</Label>
+        <Input value={notes} onChange={(e) => setNotes(e.target.value)} disabled={disabled} />
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={disabled || saving}
+        onClick={() => onSave(reps, weight, notes)}
+      >
+        {saving ? "Saving..." : "Save"}
+      </Button>
+    </div>
+  );
+}

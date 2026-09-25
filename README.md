@@ -22,12 +22,18 @@ cp .env.local.example .env.local
 
 ## 3. Run the database migrations
 
-In the Supabase dashboard, open **SQL Editor** and run the three files in
+In the Supabase dashboard, open **SQL Editor** and run the files in
 `supabase/migrations/` **in order**:
 
 1. `0001_init.sql` — tables, indexes, foreign keys
 2. `0002_rls.sql` — Row Level Security policies
 3. `0003_handle_new_user.sql` — auto-provisions a profile on signup
+4. `0004_client_invitations.sql` — invitations and trainer/client connection
+5. `0005_workout_mvp.sql` — assignment/session RPCs and shared exercise seed
+6. `0006_revoke_anon_invitation_rpcs.sql` — keeps invitation RPCs off `anon`
+
+If 0001–0004 are already applied, run only the new files. Do not re-run older
+migrations against a live database.
 
 (If you prefer the CLI: `supabase link` then `supabase db push`, with the
 Supabase CLI installed locally.)

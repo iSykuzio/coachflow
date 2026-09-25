@@ -13,7 +13,16 @@ export function initials(name: string | null | undefined): string {
 }
 
 export function formatDate(date: string | Date): string {
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d =
+    typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? new Date(
+          Number(date.slice(0, 4)),
+          Number(date.slice(5, 7)) - 1,
+          Number(date.slice(8, 10))
+        )
+      : typeof date === "string"
+        ? new Date(date)
+        : date;
   return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",

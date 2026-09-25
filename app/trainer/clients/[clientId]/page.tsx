@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatDate } from "@/lib/utils";
+import { AssignWorkoutForm } from "@/components/workouts/assign-workout-form";
 
 type ProfileSummary = {
   id: string;
@@ -19,6 +21,19 @@ type ClientProfileSummary = {
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
+};
+
+type WorkoutRow = {
+  id: string;
+  name: string;
+};
+
+type AssignmentRow = {
+  id: string;
+  status: string;
+  assigned_date: string;
+  due_date: string | null;
+  workout_id: string;
 };
 
 type ClientStatus = "active" | "invited" | "archived";
@@ -125,6 +140,23 @@ export default async function TrainerClientProfilePage({
   }
 
   const status = isClientStatus(clientLink.status) ? clientLink.status : null;
+
+  const { data: workouts } = await supabase
+    .from("workouts")
+    .select("id, name")
+    .eq("trainer_id", trainerProfile.id)
+    .order("name")
+    .overrideTypes<WorkoutRow[], { merge: false }>();
+
+  const { data: assignments } = await supabase
+    .from("assigned_workouts")
+    .select("id, status, assigned_date, due_date, workout_id")
+    .eq("trainer_id", trainerProfile.id)
+    .eq("client_id", clientProfile.id)
+    .order("assigned_date", { ascending: false })
+    .overrideTypes<AssignmentRow[], { merge: false }>();
+
+  const workoutName = new Map((workouts ?? []).map((workout) => [workout.id, workout.name]));
   const initials =
     (clientProfile.full_name ?? clientProfile.email ?? "Client")
       .split(/\s+/)
@@ -204,6 +236,49 @@ export default async function TrainerClientProfilePage({
           </div>
         </CardContent>
       </Card>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">
+          Assigned workouts
+        </h2>
+        {status === "active" && (
+          <AssignWorkoutForm
+            defaultClientId={clientProfile.id}
+            clients={[{ id: clientProfile.id, name: clientProfile.full_name || "Client" }]}
+            workouts={(workouts ?? []).map((workout) => ({ id: workout.id, name: workout.name }))}
+          />
+        )}
+        {(assignments ?? []).length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              {status === "active"
+                ? "No workouts assigned yet."
+                : "Workouts can be assigned after this client is active."}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-3">
+            {(assignments ?? []).map((assignment) => (
+              <Card key={assignment.id}>
+                <CardContent className="flex items-center justify-between gap-4 py-4">
+                  <div>
+                    <p className="font-medium text-foreground">
+                      {workoutName.get(assignment.workout_id) ?? "Workout"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Assigned {formatDate(assignment.assigned_date)}
+                      {assignment.due_date ? ` · due ${formatDate(assignment.due_date)}` : ""}
+                    </p>
+                  </div>
+                  <span className="text-xs font-medium capitalize text-muted-foreground">
+                    {assignment.status.replace("_", " ")}
+                  </span>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
