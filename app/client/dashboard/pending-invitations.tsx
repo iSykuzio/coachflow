@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { friendlyAcceptFailure } from "@/lib/invitations/errors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -12,19 +13,6 @@ export type PendingInvitation = {
   trainer_name: string;
   created_at: string;
 };
-
-function friendlyAcceptError(message: string): string {
-  const known = [
-    "This invitation is no longer pending",
-    "This invitation does not match your account email",
-    "You are already connected to a trainer",
-    "Only client accounts can accept invitations",
-    "Invitation not found",
-    "Not authenticated",
-  ];
-
-  return known.find((item) => message.includes(item)) ?? "We couldn’t connect you to that trainer. Please try again.";
-}
 
 export function PendingInvitations({ invitations }: { invitations: PendingInvitation[] }) {
   const router = useRouter();
@@ -46,7 +34,7 @@ export function PendingInvitations({ invitations }: { invitations: PendingInvita
     setAcceptingId(null);
 
     if (acceptError) {
-      setError(friendlyAcceptError(acceptError.message));
+      setError(friendlyAcceptFailure(acceptError.message));
       return;
     }
 

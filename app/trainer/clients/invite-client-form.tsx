@@ -2,27 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { inviteClientSchema } from "@/lib/validations/clients";
+import { sendClientInvitation } from "./send-invitation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-function friendlyInviteError(message: string): string {
-  const known = [
-    "Enter the client's full name",
-    "Enter a valid email address",
-    "That email belongs to a trainer account",
-    "This person is already on your roster",
-    "This client is already connected to another trainer",
-    "You already have a pending invitation for this email",
-    "Only trainers can invite clients",
-    "Not authenticated",
-  ];
-
-  return known.find((item) => message.includes(item)) ?? message;
-}
 
 export function InviteClientForm() {
   const router = useRouter();
@@ -44,33 +28,20 @@ export function InviteClientForm() {
     setError(null);
     setSuccess(null);
 
-    const parsed = inviteClientSchema.safeParse({ fullName, email });
-    if (!parsed.success) {
-      setError(parsed.error.errors[0].message);
-      return;
-    }
-
+    const parsedName = fullName;
+    const parsedEmail = email;
     setLoading(true);
-    const supabase = createClient();
-    const { error: inviteError } = await supabase.rpc(
-      "invite_client",
-      {
-        p_full_name: parsed.data.fullName,
-        p_email: parsed.data.email,
-      } as never
-    );
+    const result = await sendClientInvitation({ fullName: parsedName, email: parsedEmail });
     setLoading(false);
 
-    if (inviteError) {
-      setError(friendlyInviteError(inviteError.message));
+    if (!result.ok) {
+      setError(result.message);
       return;
     }
 
     resetForm();
     setOpen(false);
-    setSuccess(
-      `Invitation created for ${parsed.data.email}. No email is sent. Ask them to sign up or log in with that email as a client.`
-    );
+    setSuccess(result.message);
     router.refresh();
   }
 
@@ -101,7 +72,7 @@ export function InviteClientForm() {
               <div>
                 <h2 className="text-base font-semibold tracking-tight">Invite a client</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  They’ll appear under Invited until they sign up or log in with this email. CoachFlow does not send an email.
+                  They’ll appear under Invited until they open the email and join. The invitation lasts 14 days.
                 </p>
               </div>
 
@@ -137,7 +108,7 @@ export function InviteClientForm() {
 
               <div className="flex justify-end">
                 <Button type="submit" disabled={loading}>
-                  {loading ? "Creating invitation..." : "Create invitation"}
+                  {loading ? "Sending invitation..." : "Send invitation"}
                 </Button>
               </div>
             </form>

@@ -75,6 +75,7 @@ export type Database = {
           accepted_client_id: string | null
           created_at: string
           email: string
+          expires_at: string | null
           full_name: string
           id: string
           status: string
@@ -85,6 +86,7 @@ export type Database = {
           accepted_client_id?: string | null
           created_at?: string
           email: string
+          expires_at?: string | null
           full_name: string
           id?: string
           status?: string
@@ -244,6 +246,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           email: string
+          expires_at?: string | null
           full_name: string
           id: string
           role: string
@@ -253,6 +256,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email: string
+          expires_at?: string | null
           full_name: string
           id: string
           role: string
@@ -533,6 +537,7 @@ export type Database = {
           accepted_client_id: string | null
           created_at: string
           email: string
+          expires_at?: string | null
           full_name: string
           id: string
           status: string
