@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { parseOptionalNumber } from "@/lib/workouts/set-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,12 +37,6 @@ function sessionIdFromRpc(data: unknown): string {
     if (typeof id === "string" && id.length > 0) return id;
   }
   throw new Error("Could not start session");
-}
-
-function finiteOrNull(value: string): number | null {
-  if (value.trim() === "") return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function describeError(error: { message?: string; details?: string; hint?: string; code?: string }) {
@@ -111,14 +106,26 @@ export function SessionLogger({
     setNotice(null);
     const key = `${line.id}:${setNumber}`;
     setSavingKey(key);
+    const repsValue = parseOptionalNumber(reps, "reps");
+    const weightValue = parseOptionalNumber(weight, "weight");
+    if (!repsValue.ok) {
+      setError(repsValue.message);
+      setSavingKey(null);
+      return;
+    }
+    if (!weightValue.ok) {
+      setError(weightValue.message);
+      setSavingKey(null);
+      return;
+    }
     try {
       const supabase = createClient();
       const { data, error: saveError } = await supabase.rpc("save_workout_set", {
         p_assigned_workout_id: assignmentId,
         p_workout_exercise_id: line.id,
         p_set_number: setNumber,
-        p_reps: finiteOrNull(reps),
-        p_weight: finiteOrNull(weight),
+        p_reps: repsValue.value,
+        p_weight: weightValue.value,
         p_notes: notes.trim() || null,
       });
       if (saveError) {

@@ -25,6 +25,7 @@
     "node_modules copy",
     "public copy",
     "supabase copy",
+    "tests",
     "middleware copy.ts",
     "package copy.json",
     "package-lock copy.json",

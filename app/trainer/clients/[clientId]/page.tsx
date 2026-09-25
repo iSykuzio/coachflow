@@ -36,6 +36,31 @@ type AssignmentRow = {
   workout_id: string;
 };
 
+type LoggedSet = {
+  exercise_name: string;
+  set_number: number;
+  reps: number | null;
+  weight: number | null;
+  notes: string | null;
+};
+
+type LoggedSession = {
+  session_id: string;
+  status: string;
+  completed_at: string | null;
+  started_at: string;
+  sets: LoggedSet[];
+};
+
+type ClientWorkoutResult = {
+  assignment_id: string;
+  workout_name: string;
+  assignment_status: string;
+  due_date: string | null;
+  assigned_date: string;
+  sessions: LoggedSession[];
+};
+
 type ClientStatus = "active" | "invited" | "archived";
 
 const STATUS_LABELS: Record<ClientStatus, string> = {
@@ -155,6 +180,13 @@ export default async function TrainerClientProfilePage({
     .eq("client_id", clientProfile.id)
     .order("assigned_date", { ascending: false })
     .overrideTypes<AssignmentRow[], { merge: false }>();
+
+  const { data: loggedResults, error: loggedResultsError } =
+    status === "active"
+      ? await supabase
+          .rpc("list_client_workout_results", { p_client_id: clientProfile.id })
+          .overrideTypes<ClientWorkoutResult[], { merge: false }>()
+      : { data: [] as ClientWorkoutResult[], error: null };
 
   const workoutName = new Map((workouts ?? []).map((workout) => [workout.id, workout.name]));
   const initials =
@@ -279,6 +311,82 @@ export default async function TrainerClientProfilePage({
           </div>
         )}
       </section>
+
+      {status === "active" && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            Logged results
+          </h2>
+          {loggedResultsError ? (
+            <Card>
+              <CardContent className="py-8 text-sm text-muted-foreground">
+                {loggedResultsError.code === "PGRST202"
+                  ? "Logged sets are not available until the latest database migration is applied."
+                  : "Logged sets could not be loaded for this client."}
+              </CardContent>
+            </Card>
+          ) : (Array.isArray(loggedResults) ? loggedResults : []).length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-sm text-muted-foreground">
+                No assigned workouts yet.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3">
+              {(Array.isArray(loggedResults) ? loggedResults : []).map((result) => {
+                const sessions = Array.isArray(result.sessions) ? result.sessions : [];
+                return (
+                <Card key={result.assignment_id}>
+                  <CardContent className="space-y-3 py-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-foreground">{result.workout_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Assigned {formatDate(result.assigned_date)}
+                          {result.due_date ? ` · due ${formatDate(result.due_date)}` : ""}
+                        </p>
+                      </div>
+                      <span className="text-xs font-medium capitalize text-muted-foreground">
+                        {result.assignment_status.replace("_", " ")}
+                      </span>
+                    </div>
+                    {sessions.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No sets logged yet.</p>
+                    ) : (
+                      sessions.map((session) => {
+                        const sets = Array.isArray(session.sets) ? session.sets : [];
+                        return (
+                        <div key={session.session_id} className="space-y-2 border-t border-border pt-3">
+                          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                            {session.status === "completed" ? "Completed" : "In progress"}
+                            {session.completed_at ? ` · ${formatDate(session.completed_at)}` : ""}
+                          </p>
+                          {sets.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">Session started, no sets saved.</p>
+                          ) : (
+                            <ul className="space-y-1 text-sm">
+                              {sets.map((set) => (
+                                <li key={`${session.session_id}-${set.exercise_name}-${set.set_number}`}>
+                                  {set.exercise_name} · set {set.set_number}
+                                  {set.reps != null ? ` · ${set.reps} reps` : ""}
+                                  {set.weight != null ? ` · ${set.weight}` : ""}
+                                  {set.notes ? ` · ${set.notes}` : ""}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                        );
+                      })
+                    )}
+                  </CardContent>
+                </Card>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
