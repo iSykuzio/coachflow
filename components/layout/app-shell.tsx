@@ -107,7 +107,14 @@ export function AppShell({
         >
           CoachFlow
         </Link>
-        <Avatar name={userName} className="h-8 w-8 text-xs" />
+        <form action="/auth/signout" method="post">
+          <button
+            type="submit"
+            className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"
+          >
+            Log out
+          </button>
+        </form>
       </div>
 
       <main className="flex-1 pb-20 pt-14 sm:pb-0 sm:pt-0">

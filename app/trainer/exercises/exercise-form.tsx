@@ -72,7 +72,7 @@ export function ExerciseForm() {
     setLoading(false);
 
     if (insertError) {
-      setError("We couldn’t save that exercise. Please try again.");
+      setError(insertError.message || "We couldn’t save that exercise.");
       return;
     }
 

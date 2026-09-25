@@ -67,7 +67,7 @@ export default async function ClientWorkoutsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Your workouts</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Open an assignment to log sets and complete the session.
+          Open a workout to log sets. Completed sessions stay here as a record.
         </p>
       </div>
 

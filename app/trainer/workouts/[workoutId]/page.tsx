@@ -184,6 +184,11 @@ export default async function TrainerWorkoutBuilderPage({
         </h2>
         <AssignWorkoutForm
           defaultWorkoutId={workout.id}
+          blockedReason={
+            (lines ?? []).length === 0
+              ? "Add at least one exercise before assigning this workout."
+              : undefined
+          }
           workouts={[{ id: workout.id, name: workout.name }]}
           clients={clientProfiles.map((profile) => ({
             id: profile.id,

@@ -28,11 +28,13 @@ export function AssignWorkoutForm({
   workouts,
   defaultClientId,
   defaultWorkoutId,
+  blockedReason,
 }: {
   clients: Option[];
   workouts: Option[];
   defaultClientId?: string;
   defaultWorkoutId?: string;
+  blockedReason?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -43,7 +45,7 @@ export function AssignWorkoutForm({
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const canAssign = clients.length > 0 && workouts.length > 0;
+  const canAssign = clients.length > 0 && workouts.length > 0 && !blockedReason;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -96,9 +98,11 @@ export function AssignWorkoutForm({
 
       {!canAssign && (
         <p className="text-sm text-muted-foreground">
-          {clients.length === 0
-            ? "You need an active client before you can assign a workout."
-            : "Create a workout with at least one exercise first."}
+          {blockedReason
+            ? blockedReason
+            : clients.length === 0
+              ? "You need an active client before you can assign a workout."
+              : "Create a workout with at least one exercise first."}
         </p>
       )}
 

@@ -70,21 +70,27 @@ export default function SignupPage() {
           )}
 
           <div className="space-y-2">
-            <Label>I am a…</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {(["trainer", "client"] as const).map((r) => (
+            <Label>How will you use CoachFlow?</Label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(
+                [
+                  ["trainer", "I’m a trainer", "Invite clients and assign workouts."],
+                  ["client", "I’m a client", "Use the email your trainer invited."],
+                ] as const
+              ).map(([value, title, detail]) => (
                 <button
-                  key={r}
+                  key={value}
                   type="button"
-                  onClick={() => setRole(r)}
+                  onClick={() => setRole(value)}
                   className={cn(
-                    "rounded-md border px-3 py-2 text-sm font-medium capitalize transition-colors",
-                    role === r
-                      ? "border-accent bg-accent/10 text-accent"
+                    "rounded-md border px-3 py-3 text-left transition-colors",
+                    role === value
+                      ? "border-accent bg-accent/10 text-foreground"
                       : "border-input bg-background text-muted-foreground hover:bg-secondary"
                   )}
                 >
-                  {r}
+                  <span className="block text-sm font-medium">{title}</span>
+                  <span className="mt-1 block text-xs">{detail}</span>
                 </button>
               ))}
             </div>

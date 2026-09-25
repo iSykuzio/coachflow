@@ -181,6 +181,11 @@ export function SessionLogger({
 
   return (
     <div className="space-y-4">
+      {done && (
+        <div className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
+          This workout is complete. The sets below are saved and can’t be edited.
+        </div>
+      )}
       {error && (
         <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
@@ -285,6 +290,7 @@ function SetRow({
         type="button"
         size="sm"
         variant="outline"
+        className="h-11 w-full sm:h-9 sm:w-auto"
         disabled={disabled || saving}
         onClick={() => onSave(reps, weight, notes)}
       >
