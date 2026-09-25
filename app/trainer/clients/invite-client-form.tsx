@@ -21,7 +21,7 @@ function friendlyInviteError(message: string): string {
     "Not authenticated",
   ];
 
-  return known.find((item) => message.includes(item)) ?? "We couldn’t send that invitation. Please try again.";
+  return known.find((item) => message.includes(item)) ?? message;
 }
 
 export function InviteClientForm() {
@@ -69,7 +69,7 @@ export function InviteClientForm() {
     resetForm();
     setOpen(false);
     setSuccess(
-      `Invitation sent to ${parsed.data.email}. Ask them to sign up or log in with that email as a client.`
+      `Invitation created for ${parsed.data.email}. No email is sent. Ask them to sign up or log in with that email as a client.`
     );
     router.refresh();
   }
@@ -101,7 +101,7 @@ export function InviteClientForm() {
               <div>
                 <h2 className="text-base font-semibold tracking-tight">Invite a client</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  They’ll appear under Invited until they sign up or log in with this email.
+                  They’ll appear under Invited until they sign up or log in with this email. CoachFlow does not send an email.
                 </p>
               </div>
 
@@ -137,7 +137,7 @@ export function InviteClientForm() {
 
               <div className="flex justify-end">
                 <Button type="submit" disabled={loading}>
-                  {loading ? "Sending invitation..." : "Send invitation"}
+                  {loading ? "Creating invitation..." : "Create invitation"}
                 </Button>
               </div>
             </form>

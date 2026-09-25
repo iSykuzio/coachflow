@@ -36,12 +36,25 @@ type ExerciseRow = {
   name: string;
 };
 
-type SessionRow = {
-  id: string;
-  status: string;
+type ProgressLog = {
+  workout_exercise_id: string;
+  set_number: number;
+  reps: number | string | null;
+  weight: number | string | null;
+  notes: string | null;
 };
 
-type SetLogRow = LoggerSet;
+type ProgressPayload = {
+  session_id: string | null;
+  session_status: string | null;
+  logs: ProgressLog[];
+};
+
+function asNumber(value: number | string | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 export default async function ClientAssignedWorkoutPage({
   params,
@@ -108,38 +121,17 @@ export default async function ClientAssignedWorkoutPage({
     for (const exercise of exercises ?? []) exerciseMap.set(exercise.id, exercise.name);
   }
 
-  const { data: openSession } = await supabase
-    .from("workout_sessions")
-    .select("id, status")
-    .eq("assigned_workout_id", assignment.id)
-    .eq("client_id", user.id)
-    .eq("status", "in_progress")
-    .maybeSingle()
-    .overrideTypes<SessionRow | null, { merge: false }>();
+  const { data: progress, error: progressError } = await supabase
+    .rpc("get_my_assignment_progress", { p_assigned_workout_id: assignment.id })
+    .overrideTypes<ProgressPayload, { merge: false }>();
 
-  const { data: latestCompleted } = openSession
-    ? { data: null as SessionRow | null }
-    : await supabase
-        .from("workout_sessions")
-        .select("id, status")
-        .eq("assigned_workout_id", assignment.id)
-        .eq("client_id", user.id)
-        .eq("status", "completed")
-        .order("completed_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-        .overrideTypes<SessionRow | null, { merge: false }>();
-
-  const session = openSession ?? latestCompleted;
-  let logs: SetLogRow[] = [];
-  if (session) {
-    const { data } = await supabase
-      .from("set_logs")
-      .select("workout_exercise_id, set_number, reps, weight, notes")
-      .eq("workout_session_id", session.id)
-      .overrideTypes<SetLogRow[], { merge: false }>();
-    logs = data ?? [];
-  }
+  const logs: LoggerSet[] = (Array.isArray(progress?.logs) ? progress.logs : []).map((log) => ({
+    workout_exercise_id: log.workout_exercise_id,
+    set_number: log.set_number,
+    reps: asNumber(log.reps),
+    weight: asNumber(log.weight),
+    notes: log.notes,
+  }));
 
   const loggerLines: LoggerLine[] = (lines ?? []).map((line) => ({
     id: line.id,
@@ -151,7 +143,8 @@ export default async function ClientAssignedWorkoutPage({
     notes: line.notes,
   }));
 
-  const completed = assignment.status === "completed" || session?.status === "completed";
+  const completed =
+    assignment.status === "completed" || progress?.session_status === "completed";
 
   return (
     <div className="space-y-6">
@@ -178,13 +171,20 @@ export default async function ClientAssignedWorkoutPage({
           </CardContent>
         </Card>
       ) : (
-        <SessionLogger
-          assignmentId={assignment.id}
-          sessionId={session?.id ?? null}
-          completed={completed}
-          lines={loggerLines}
-          logs={logs}
-        />
+        <>
+          <SessionLogger
+            assignmentId={assignment.id}
+            sessionId={progress?.session_id ?? null}
+            completed={completed}
+            lines={loggerLines}
+            logs={logs}
+          />
+          {progressError && (
+            <p role="alert" className="text-sm text-red-700">
+              Saved sets could not be loaded: {progressError.message}
+            </p>
+          )}
+        </>
       )}
     </div>
   );

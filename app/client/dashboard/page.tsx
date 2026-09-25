@@ -58,7 +58,13 @@ export default async function ClientDashboardPage() {
     .overrideTypes<TrainerLink | null, { merge: false }>();
 
   if (profileError || trainerLinkError) {
-    redirect("/login");
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-sm text-red-700">
+          {profileError?.message ?? trainerLinkError?.message}
+        </CardContent>
+      </Card>
+    );
   }
 
   const { data: pendingInvites } = trainerLink

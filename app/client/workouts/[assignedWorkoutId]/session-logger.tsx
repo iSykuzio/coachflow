@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,13 @@ function finiteOrNull(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function describeError(error: { message?: string; details?: string; hint?: string; code?: string }) {
+  const parts = [error.message, error.details, error.hint, error.code].filter(
+    (part): part is string => Boolean(part && part.trim())
+  );
+  return parts.join(" — ") || "The request failed.";
+}
+
 export function SessionLogger({
   assignmentId,
   sessionId,
@@ -60,17 +67,24 @@ export function SessionLogger({
   const router = useRouter();
   const [activeSessionId, setActiveSessionId] = useState(sessionId);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [savedKey, setSavedKey] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
   const [done, setDone] = useState(completed);
+  const [localLogs, setLocalLogs] = useState(logs);
+
+  useEffect(() => {
+    setLocalLogs(logs);
+  }, [logs]);
 
   const logMap = useMemo(() => {
     const map = new Map<string, LoggerSet>();
-    for (const log of logs) {
+    for (const log of localLogs) {
       map.set(`${log.workout_exercise_id}:${log.set_number}`, log);
     }
     return map;
-  }, [logs]);
+  }, [localLogs]);
 
   async function ensureSession() {
     if (activeSessionId) return activeSessionId;
@@ -94,11 +108,12 @@ export function SessionLogger({
     notes: string
   ) {
     setError(null);
+    setNotice(null);
     const key = `${line.id}:${setNumber}`;
     setSavingKey(key);
     try {
       const supabase = createClient();
-      const { error: saveError } = await supabase.rpc("save_workout_set", {
+      const { data, error: saveError } = await supabase.rpc("save_workout_set", {
         p_assigned_workout_id: assignmentId,
         p_workout_exercise_id: line.id,
         p_set_number: setNumber,
@@ -107,9 +122,33 @@ export function SessionLogger({
         p_notes: notes.trim() || null,
       });
       if (saveError) {
-        setError(saveError.message);
+        setError(describeError(saveError));
         return;
       }
+      if (!data) {
+        setError("Save returned no set. The value was not stored.");
+        return;
+      }
+      const saved: LoggerSet = {
+        workout_exercise_id: data.workout_exercise_id,
+        set_number: data.set_number,
+        reps: data.reps == null ? null : Number(data.reps),
+        weight: data.weight == null ? null : Number(data.weight),
+        notes: data.notes,
+      };
+      setLocalLogs((current) => {
+        const next = current.filter(
+          (log) =>
+            !(
+              log.workout_exercise_id === saved.workout_exercise_id &&
+              log.set_number === saved.set_number
+            )
+        );
+        next.push(saved);
+        return next;
+      });
+      setSavedKey(key);
+      setNotice(`Set ${setNumber} saved.`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save that set.");
@@ -128,7 +167,7 @@ export function SessionLogger({
         p_session_id: session,
       });
       if (completeError) {
-        setError(completeError.message);
+        setError(describeError(completeError));
         return;
       }
       setDone(true);
@@ -143,7 +182,14 @@ export function SessionLogger({
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
+        <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      {notice && !error && (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          {notice}
+        </div>
       )}
 
       {lines.map((line) => (
@@ -172,6 +218,7 @@ export function SessionLogger({
                     defaultNotes={existing?.notes ?? ""}
                     disabled={done}
                     saving={savingKey === `${line.id}:${setNumber}`}
+                    saved={savedKey === `${line.id}:${setNumber}`}
                     onSave={(reps, weight, notes) => saveSet(line, setNumber, reps, weight, notes)}
                   />
                 );
@@ -197,6 +244,7 @@ function SetRow({
   defaultNotes,
   disabled,
   saving,
+  saved,
   onSave,
 }: {
   setNumber: number;
@@ -205,11 +253,18 @@ function SetRow({
   defaultNotes: string;
   disabled: boolean;
   saving: boolean;
+  saved: boolean;
   onSave: (reps: string, weight: string, notes: string) => void;
 }) {
   const [reps, setReps] = useState(defaultReps);
   const [weight, setWeight] = useState(defaultWeight);
   const [notes, setNotes] = useState(defaultNotes);
+
+  useEffect(() => {
+    setReps(defaultReps);
+    setWeight(defaultWeight);
+    setNotes(defaultNotes);
+  }, [defaultReps, defaultWeight, defaultNotes]);
 
   return (
     <div className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-[3rem_1fr_1fr_1fr_auto] sm:items-end">
@@ -233,7 +288,7 @@ function SetRow({
         disabled={disabled || saving}
         onClick={() => onSave(reps, weight, notes)}
       >
-        {saving ? "Saving..." : "Save"}
+        {saving ? "Saving..." : saved ? "Saved" : "Save"}
       </Button>
     </div>
   );

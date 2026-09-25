@@ -598,7 +598,6 @@ export type Database = {
           p_workout_exercise_id: string
         }
         Returns: {
-          completed_at: string | null
           id: string
           notes: string | null
           reps: number | null
@@ -607,6 +606,29 @@ export type Database = {
           workout_exercise_id: string
           workout_session_id: string
         }
+      }
+      get_my_assignment_progress: {
+        Args: { p_assigned_workout_id: string }
+        Returns: {
+          logs: {
+            notes: string | null
+            reps: number | null
+            set_number: number
+            weight: number | null
+            workout_exercise_id: string
+          }[]
+          session_id: string | null
+          session_status: string | null
+        }
+      }
+      list_my_completed_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          assigned_workout_id: string
+          completed_at: string | null
+          session_id: string
+          workout_name: string
+        }[]
       }
     }
     Enums: {

@@ -4,21 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils";
 
-type SessionRow = {
-  id: string;
+type HistoryItem = {
+  session_id: string;
   assigned_workout_id: string;
   completed_at: string | null;
-  started_at: string;
-};
-
-type AssignmentRow = {
-  id: string;
-  workout_id: string;
-};
-
-type WorkoutRow = {
-  id: string;
-  name: string;
+  workout_name: string;
 };
 
 export default async function ClientHistoryPage() {
@@ -30,45 +20,20 @@ export default async function ClientHistoryPage() {
   if (!user) redirect("/login");
 
   const { data: sessions, error } = await supabase
-    .from("workout_sessions")
-    .select("id, assigned_workout_id, completed_at, started_at")
-    .eq("client_id", user.id)
-    .eq("status", "completed")
-    .order("completed_at", { ascending: false })
-    .overrideTypes<SessionRow[], { merge: false }>();
+    .rpc("list_my_completed_sessions")
+    .overrideTypes<HistoryItem[], { merge: false }>();
 
   if (error) {
     return (
       <Card>
         <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          We couldn’t load your history right now.
+          {error.message}
         </CardContent>
       </Card>
     );
   }
 
-  const assignmentIds = [...new Set((sessions ?? []).map((item) => item.assigned_workout_id))];
-  const assignmentMap = new Map<string, AssignmentRow>();
-  const workoutMap = new Map<string, string>();
-
-  if (assignmentIds.length > 0) {
-    const { data: assignments } = await supabase
-      .from("assigned_workouts")
-      .select("id, workout_id")
-      .in("id", assignmentIds)
-      .overrideTypes<AssignmentRow[], { merge: false }>();
-    for (const assignment of assignments ?? []) assignmentMap.set(assignment.id, assignment);
-
-    const workoutIds = [...new Set((assignments ?? []).map((item) => item.workout_id))];
-    if (workoutIds.length > 0) {
-      const { data: workouts } = await supabase
-        .from("workouts")
-        .select("id, name")
-        .in("id", workoutIds)
-        .overrideTypes<WorkoutRow[], { merge: false }>();
-      for (const workout of workouts ?? []) workoutMap.set(workout.id, workout.name);
-    }
-  }
+  const items = Array.isArray(sessions) ? sessions : [];
 
   return (
     <div className="space-y-6">
@@ -77,7 +42,7 @@ export default async function ClientHistoryPage() {
         <p className="mt-1 text-sm text-muted-foreground">Completed sessions.</p>
       </div>
 
-      {(sessions ?? []).length === 0 ? (
+      {items.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
             No completed workouts yet.
@@ -85,21 +50,19 @@ export default async function ClientHistoryPage() {
         </Card>
       ) : (
         <div className="grid gap-3">
-          {(sessions ?? []).map((session) => {
-            const assignment = assignmentMap.get(session.assigned_workout_id);
-            const name = assignment ? workoutMap.get(assignment.workout_id) : "Workout";
+          {items.map((session) => {
             return (
               <Link
-                key={session.id}
+                key={session.session_id}
                 href={`/client/workouts/${session.assigned_workout_id}`}
                 className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <Card className="transition-colors hover:bg-secondary/40">
                   <CardContent className="flex items-center justify-between gap-4 py-4">
                     <div>
-                      <p className="font-medium text-foreground">{name ?? "Workout"}</p>
+                      <p className="font-medium text-foreground">{session.workout_name || "Workout"}</p>
                       <p className="text-sm text-muted-foreground">
-                        {formatDate(session.completed_at ?? session.started_at)}
+                        {session.completed_at ? formatDate(session.completed_at) : "Completed"}
                       </p>
                     </div>
                     <span className="text-xs font-medium text-muted-foreground">Completed</span>

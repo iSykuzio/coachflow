@@ -69,7 +69,7 @@ export function AddExerciseForm({
     setLoading(false);
 
     if (insertError) {
-      setError("We couldn’t add that exercise. Please try again.");
+      setError(insertError.message);
       return;
     }
 

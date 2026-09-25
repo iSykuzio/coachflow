@@ -52,7 +52,7 @@ export function CreateWorkoutForm() {
     setLoading(false);
 
     if (insertError || !data) {
-      setError("We couldn’t create that workout. Please try again.");
+      setError(insertError?.message ?? "The workout was not created.");
       return;
     }
 
