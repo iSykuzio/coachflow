@@ -588,6 +588,26 @@ export type Database = {
           status: string
         }
       }
+      save_workout_set: {
+        Args: {
+          p_assigned_workout_id: string
+          p_notes?: string | null
+          p_reps?: number | null
+          p_set_number: number
+          p_weight?: number | null
+          p_workout_exercise_id: string
+        }
+        Returns: {
+          completed_at: string | null
+          id: string
+          notes: string | null
+          reps: number | null
+          set_number: number
+          weight: number | null
+          workout_exercise_id: string
+          workout_session_id: string
+        }
+      }
     }
     Enums: {
       [_ in never]: never

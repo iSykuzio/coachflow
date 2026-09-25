@@ -26,6 +26,24 @@ export type LoggerSet = {
   notes: string | null;
 };
 
+function sessionIdFromRpc(data: unknown): string {
+  if (data && typeof data === "object" && !Array.isArray(data) && "id" in data) {
+    const id = (data as { id: unknown }).id;
+    if (typeof id === "string" && id.length > 0) return id;
+  }
+  if (Array.isArray(data) && data[0] && typeof data[0] === "object" && "id" in data[0]) {
+    const id = (data[0] as { id: unknown }).id;
+    if (typeof id === "string" && id.length > 0) return id;
+  }
+  throw new Error("Could not start session");
+}
+
+function finiteOrNull(value: string): number | null {
+  if (value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function SessionLogger({
   assignmentId,
   sessionId,
@@ -63,7 +81,7 @@ export function SessionLogger({
     if (startError || !data) {
       throw new Error(startError?.message ?? "Could not start session");
     }
-    const id = (data as { id: string }).id;
+    const id = sessionIdFromRpc(data);
     setActiveSessionId(id);
     return id;
   }
@@ -79,29 +97,22 @@ export function SessionLogger({
     const key = `${line.id}:${setNumber}`;
     setSavingKey(key);
     try {
-      const session = await ensureSession();
       const supabase = createClient();
-      const repsValue = reps.trim() === "" ? null : Number(reps);
-      const weightValue = weight.trim() === "" ? null : Number(weight);
-      const { error: upsertError } = await supabase.from("set_logs").upsert(
-        {
-          workout_session_id: session,
-          workout_exercise_id: line.id,
-          set_number: setNumber,
-          reps: Number.isFinite(repsValue as number) ? (repsValue as number) : null,
-          weight: Number.isFinite(weightValue as number) ? (weightValue as number) : null,
-          notes: notes.trim() || null,
-          completed_at: new Date().toISOString(),
-        },
-        { onConflict: "workout_session_id,workout_exercise_id,set_number" }
-      );
-      if (upsertError) {
-        setError("Could not save that set. Run the latest database migration if this keeps failing.");
+      const { error: saveError } = await supabase.rpc("save_workout_set", {
+        p_assigned_workout_id: assignmentId,
+        p_workout_exercise_id: line.id,
+        p_set_number: setNumber,
+        p_reps: finiteOrNull(reps),
+        p_weight: finiteOrNull(weight),
+        p_notes: notes.trim() || null,
+      });
+      if (saveError) {
+        setError(saveError.message);
         return;
       }
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start this workout.");
+      setError(err instanceof Error ? err.message : "Could not save that set.");
     } finally {
       setSavingKey(null);
     }
@@ -117,7 +128,7 @@ export function SessionLogger({
         p_session_id: session,
       });
       if (completeError) {
-        setError("Could not complete this workout. Please try again.");
+        setError(completeError.message);
         return;
       }
       setDone(true);
