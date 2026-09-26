@@ -39,6 +39,7 @@ export function safeAppPath(next: string | null | undefined): string | null {
   if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("\\") || next.includes("://")) {
     return null;
   }
+  if (next === "/reset-password") return next;
   if (next.startsWith("/client") || next.startsWith("/trainer")) return next;
   return null;
 }

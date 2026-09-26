@@ -28,5 +28,7 @@ test("auth email redirects cannot leave the app or cross a guessed path", () => 
   assert.equal(safeAppPath("/trainer/clients"), "/trainer/clients");
   assert.equal(safeAppPath("//evil.example"), null);
   assert.equal(safeAppPath("https://evil.example"), null);
+  assert.equal(safeAppPath("/reset-password"), "/reset-password");
+  assert.equal(safeAppPath("/reset-password/extra"), null);
   assert.equal(safeAppPath("/invite"), null);
 });

@@ -30,10 +30,15 @@ export async function GET(request: NextRequest) {
     }
 
     const requested = safeAppPath(searchParams.get("next"));
-    const allowed =
-      (role === "trainer" && requested?.startsWith("/trainer")) ||
-      (role === "client" && requested?.startsWith("/client"));
-    destination = allowed && requested ? requested : homeForRole(role);
+    const recovery = searchParams.get("type") === "recovery" || requested === "/reset-password";
+    if (recovery) {
+      destination = "/reset-password";
+    } else {
+      const allowed =
+        (role === "trainer" && requested?.startsWith("/trainer")) ||
+        (role === "client" && requested?.startsWith("/client"));
+      destination = allowed && requested ? requested : homeForRole(role);
+    }
   }
 
   return NextResponse.redirect(`${origin}${destination}`);
