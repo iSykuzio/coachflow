@@ -92,7 +92,7 @@ export default async function TrainerWorkoutsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Workouts</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Build a complete session here. Search movements, add as many as you need, then save or assign the whole workout.
+          Type the full session on this page. Existing movements are reused automatically. You do not need to visit the Exercise library.
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
           A workout is a full session. Exercises are the individual movements inside it.

@@ -16,9 +16,7 @@ type ClientOption = { id: string; name: string };
 
 type DraftLine = {
   key: string;
-  exerciseId: string | null;
-  exerciseName: string;
-  query: string;
+  name: string;
   sets: string;
   reps: string;
   weight: string;
@@ -29,15 +27,21 @@ type DraftLine = {
 function blankLine(): DraftLine {
   return {
     key: crypto.randomUUID(),
-    exerciseId: null,
-    exerciseName: "",
-    query: "",
+    name: "",
     sets: "3",
     reps: "8-12",
     weight: "",
     restSeconds: "90",
     notes: "",
   };
+}
+
+function displayName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function nameKey(value: string) {
+  return displayName(value).toLowerCase();
 }
 
 export function SessionBuilder({
@@ -50,7 +54,6 @@ export function SessionBuilder({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [library, setLibrary] = useState(exercises);
   const [lines, setLines] = useState<DraftLine[]>([blankLine()]);
   const [clientId, setClientId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -71,23 +74,6 @@ export function SessionBuilder({
     });
   }
 
-  async function ensureExercise(line: DraftLine, trainerId: string) {
-    if (line.exerciseId) return line.exerciseId;
-    const typed = line.exerciseName.trim();
-    const existing = library.find((item) => item.name.toLowerCase() === typed.toLowerCase());
-    if (existing) return existing.id;
-
-    const supabase = createClient();
-    const { data, error: insertError } = await supabase
-      .from("exercises")
-      .insert({ trainer_id: trainerId, name: typed, is_custom: true })
-      .select("id, name, trainer_id")
-      .single();
-    if (insertError || !data) throw new Error(insertError?.message || "Couldn’t create that exercise.");
-    setLibrary((current) => [...current, data]);
-    return data.id;
-  }
-
   async function save(assign: boolean) {
     setError(null);
     const parsedName = workoutSchema.safeParse({ name, description: "" });
@@ -100,15 +86,22 @@ export function SessionBuilder({
       return;
     }
 
-    const prepared = lines.filter((line) => line.exerciseId || line.exerciseName.trim());
-    if (assign && prepared.length === 0) {
-      setError("Add at least one exercise before assigning this workout.");
+    const prepared = lines
+      .map((line) => ({ ...line, name: displayName(line.name) }))
+      .filter((line) => line.name.length > 0);
+
+    if (prepared.length === 0) {
+      setError("Type at least one exercise.");
       return;
     }
 
     for (const line of prepared) {
+      if (line.name.length < 2) {
+        setError("Each exercise name needs at least 2 characters.");
+        return;
+      }
       const parsed = workoutExerciseSchema.safeParse({
-        exerciseId: line.exerciseId ?? crypto.randomUUID(),
+        exerciseId: crypto.randomUUID(),
         sets: line.sets,
         reps: line.reps,
         weight: line.weight,
@@ -116,11 +109,7 @@ export function SessionBuilder({
         notes: line.notes,
       });
       if (!parsed.success) {
-        setError(parsed.error.errors[0].message);
-        return;
-      }
-      if (!line.exerciseId && line.exerciseName.trim().length < 2) {
-        setError("Choose an exercise or create one with at least 2 characters.");
+        setError(`${line.name}: ${parsed.error.errors[0].message}`);
         return;
       }
     }
@@ -136,45 +125,66 @@ export function SessionBuilder({
       return;
     }
 
-    const { data: workout, error: workoutError } = await supabase
-      .from("workouts")
-      .insert({ trainer_id: user.id, name: parsedName.data.name, description: null })
-      .select("id")
-      .single();
-    if (workoutError || !workout) {
-      setLoading(null);
-      setError(workoutError?.message ?? "The workout was not created.");
-      return;
-    }
+    const known = [...exercises];
+    const createdIds: string[] = [];
+    let workoutId: string | null = null;
+    let linesSaved = false;
 
     try {
-      const rows = [];
-      for (let index = 0; index < prepared.length; index += 1) {
-        const line = prepared[index];
-        const exerciseId = await ensureExercise(line, user.id);
+      const exerciseIds: string[] = [];
+      for (const line of prepared) {
+        const key = nameKey(line.name);
+        const matches = known.filter((item) => nameKey(item.name) === key);
+        const existing = matches.find((item) => item.trainer_id === user.id) ?? matches[0];
+        if (existing) {
+          exerciseIds.push(existing.id);
+          continue;
+        }
+
+        const { data, error: insertError } = await supabase
+          .from("exercises")
+          .insert({ trainer_id: user.id, name: line.name, is_custom: true })
+          .select("id, name, trainer_id")
+          .single();
+        if (insertError || !data) throw new Error(insertError?.message || `Couldn’t save ${line.name}.`);
+        known.push(data);
+        createdIds.push(data.id);
+        exerciseIds.push(data.id);
+      }
+
+      const { data: workout, error: workoutError } = await supabase
+        .from("workouts")
+        .insert({ trainer_id: user.id, name: parsedName.data.name, description: null })
+        .select("id")
+        .single();
+      if (workoutError || !workout) throw new Error(workoutError?.message || "The workout was not created.");
+      workoutId = workout.id;
+
+      const rows = prepared.map((line, index) => {
         const parsed = workoutExerciseSchema.parse({
-          exerciseId,
+          exerciseId: exerciseIds[index],
           sets: line.sets,
           reps: line.reps,
           weight: line.weight,
           restSeconds: line.restSeconds,
           notes: line.notes,
         });
-        rows.push({
+        return {
           workout_id: workout.id,
-          exercise_id: exerciseId,
+          exercise_id: exerciseIds[index],
           order_index: index,
           sets: parsed.sets,
           reps: parsed.reps,
           weight: parsed.weight || null,
           rest_seconds: parsed.restSeconds ?? null,
           notes: parsed.notes || null,
-        });
-      }
-      if (rows.length > 0) {
-        const { error: lineError } = await supabase.from("workout_exercises").insert(rows);
-        if (lineError) throw new Error(lineError.message);
-      }
+        };
+      });
+
+      const { error: lineError } = await supabase.from("workout_exercises").insert(rows);
+      if (lineError) throw new Error(lineError.message);
+      linesSaved = true;
+
       if (assign) {
         const { error: assignError } = await supabase.rpc("assign_workout", {
           p_workout_id: workout.id,
@@ -184,17 +194,27 @@ export function SessionBuilder({
         if (assignError) throw new Error(assignError.message);
       }
     } catch (caught) {
+      if (!linesSaved) {
+        if (workoutId) await supabase.from("workouts").delete().eq("id", workoutId);
+        if (createdIds.length > 0) await supabase.from("exercises").delete().in("id", createdIds);
+        setLoading(null);
+        setError(caught instanceof Error ? caught.message : "The workout was not saved.");
+        return;
+      }
       setLoading(null);
-      const message = caught instanceof Error ? caught.message : "The workout was saved, but not everything could be added.";
-      setError(message);
-      router.push(`/trainer/workouts/${workout.id}`);
-      router.refresh();
+      setError(caught instanceof Error ? caught.message : "The workout was saved, but it could not be assigned.");
+      if (workoutId) {
+        router.push(`/trainer/workouts/${workoutId}`);
+        router.refresh();
+      }
       return;
     }
 
     setLoading(null);
-    router.push(`/trainer/workouts/${workout.id}`);
-    router.refresh();
+    if (workoutId) {
+      router.push(`/trainer/workouts/${workoutId}`);
+      router.refresh();
+    }
   }
 
   return (
@@ -208,9 +228,9 @@ export function SessionBuilder({
         <Card>
           <CardContent className="space-y-6 pt-6">
             <div>
-              <h2 className="text-base font-semibold tracking-tight">Build the session</h2>
+              <h2 className="text-base font-semibold tracking-tight">Create workout</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Add every movement for this workout, then save it or assign the whole session to a client.
+                Type the full session on this page. Suggestions are optional. Nothing is saved until you press Save.
               </p>
             </div>
             {error && <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
@@ -230,10 +250,15 @@ export function SessionBuilder({
                   line={line}
                   index={index}
                   total={lines.length}
-                  library={library}
+                  library={exercises}
                   onChange={(patch) => updateLine(line.key, patch)}
                   onMove={(direction) => move(index, direction)}
-                  onRemove={() => setLines((current) => current.filter((item) => item.key !== line.key))}
+                  onRemove={() =>
+                    setLines((current) => {
+                      const next = current.filter((item) => item.key !== line.key);
+                      return next.length > 0 ? next : [blankLine()];
+                    })
+                  }
                 />
               ))}
               <Button type="button" variant="outline" onClick={() => setLines((current) => [...current, blankLine()])}>
@@ -250,9 +275,6 @@ export function SessionBuilder({
                   </option>
                 ))}
               </NativeSelect>
-              {clients.length === 0 && (
-                <p className="text-sm text-muted-foreground">Invite a client before you can assign this workout.</p>
-              )}
             </div>
             <div className="flex flex-wrap justify-end gap-2">
               <Button type="button" variant="outline" disabled={loading !== null} onClick={() => save(false)}>
@@ -286,17 +308,16 @@ function DraftExercise({
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
 }) {
-  const needle = line.query.trim().toLowerCase();
-  const matches = needle
-    ? library.filter((item) => item.name.toLowerCase().includes(needle)).slice(0, 8)
-    : [];
-  const exact = library.some((item) => item.name.toLowerCase() === needle);
-  const chosen = line.exerciseName || (line.exerciseId ? library.find((item) => item.id === line.exerciseId)?.name : "");
+  const needle = nameKey(line.name);
+  const suggestions =
+    needle.length === 0
+      ? []
+      : library.filter((item) => nameKey(item.name).includes(needle) && nameKey(item.name) !== needle).slice(0, 6);
 
   return (
     <div className="space-y-4 rounded-lg border border-border p-4">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium text-foreground">{index + 1}. {chosen || "Exercise"}</p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium text-foreground">{index + 1}.</p>
         <div className="flex gap-1">
           <Button type="button" variant="ghost" size="sm" disabled={index === 0} onClick={() => onMove(-1)}>
             Up
@@ -310,37 +331,27 @@ function DraftExercise({
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor={`find-${line.key}`}>Movement</Label>
+        <Label htmlFor={`name-${line.key}`}>Exercise</Label>
         <Input
-          id={`find-${line.key}`}
-          value={line.query}
-          onChange={(event) => onChange({ query: event.target.value, exerciseId: null, exerciseName: "" })}
-          placeholder="Search or type a new movement"
+          id={`name-${line.key}`}
+          value={line.name}
+          onChange={(event) => onChange({ name: event.target.value })}
+          placeholder="Romanian deadlift"
         />
-        {matches.length > 0 && (
+        {suggestions.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {matches.map((item) => (
+            {suggestions.map((item) => (
               <Button
                 key={item.id}
                 type="button"
                 size="sm"
-                variant={line.exerciseId === item.id ? "default" : "outline"}
-                onClick={() => onChange({ exerciseId: item.id, exerciseName: item.name, query: item.name })}
+                variant="outline"
+                onClick={() => onChange({ name: item.name })}
               >
                 {item.name}
               </Button>
             ))}
           </div>
-        )}
-        {needle.length >= 2 && !exact && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => onChange({ exerciseId: null, exerciseName: line.query.trim(), query: line.query.trim() })}
-          >
-            + Create “{line.query.trim()}”
-          </Button>
         )}
       </div>
       <div className="grid gap-4 sm:grid-cols-4">
