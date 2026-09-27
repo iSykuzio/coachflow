@@ -41,6 +41,7 @@ export default async function TrainerWorkoutsPage() {
       .from("exercises")
       .select("id, name, trainer_id")
       .or(`trainer_id.is.null,trainer_id.eq.${user.id}`)
+      .eq("in_library", true)
       .order("name")
       .overrideTypes<LibraryExercise[], { merge: false }>(),
     supabase

@@ -22,6 +22,7 @@ export default async function TrainerExercisesPage() {
     .from("exercises")
     .select("id, name, category, muscle_group, equipment, instructions, is_custom, trainer_id")
     .or(`trainer_id.is.null,trainer_id.eq.${user.id}`)
+    .eq("in_library", true)
     .order("name")
     .overrideTypes<ExerciseRow[], { merge: false }>();
 

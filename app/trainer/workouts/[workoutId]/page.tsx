@@ -30,6 +30,7 @@ type ExerciseRow = {
   id: string;
   name: string;
   trainer_id: string | null;
+  in_library: boolean;
 };
 
 type ClientLink = {
@@ -89,7 +90,7 @@ export default async function TrainerWorkoutBuilderPage({
         .overrideTypes<LineRow[], { merge: false }>(),
       supabase
         .from("exercises")
-        .select("id, name, trainer_id")
+        .select("id, name, trainer_id, in_library")
         .or(`trainer_id.is.null,trainer_id.eq.${user.id}`)
         .order("name")
         .overrideTypes<ExerciseRow[], { merge: false }>(),
@@ -188,7 +189,7 @@ export default async function TrainerWorkoutBuilderPage({
         <AddExerciseForm
           workoutId={workout.id}
           nextOrder={nextOrder}
-          exercises={exercises ?? []}
+          exercises={(exercises ?? []).filter((exercise) => exercise.in_library)}
         />
       </section>
 
