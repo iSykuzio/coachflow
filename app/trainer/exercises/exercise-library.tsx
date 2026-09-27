@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { DeleteExerciseButton } from "./delete-exercise-button";
 import { ExerciseEditor, type FieldSuggestions } from "./exercise-form";
@@ -18,6 +17,9 @@ export type LibraryExercise = {
   instructions: string | null;
 };
 
+const BROWSE_GROUPS = ["All", "Chest", "Back", "Shoulders", "Arms", "Legs & Glutes", "Core", "Conditioning"] as const;
+type BrowseGroup = (typeof BROWSE_GROUPS)[number];
+
 export function ExerciseLibrary({
   custom,
   shared,
@@ -28,146 +30,149 @@ export function ExerciseLibrary({
   suggestions: FieldSuggestions;
 }) {
   const [query, setQuery] = useState("");
-  const [muscle, setMuscle] = useState("");
-  const [equipment, setEquipment] = useState("");
-  const [category, setCategory] = useState("");
-  const all = useMemo(() => [...custom, ...shared], [custom, shared]);
-  const muscles = uniqueValues(all, "muscle_group");
-  const equipmentOptions = uniqueValues(all, "equipment");
-  const categories = uniqueValues(all, "category");
+  const [mineOpen, setMineOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [group, setGroup] = useState<BrowseGroup>("All");
+  const searching = query.trim().length > 0;
 
-  const filtered = useMemo(() => {
-    const match = (item: LibraryExercise) => {
-      const needle = query.trim().toLowerCase();
-      const textMatch =
-        !needle ||
-        [item.name, item.category, item.muscle_group, item.equipment, item.instructions]
-          .filter(Boolean)
-          .some((value) => value!.toLowerCase().includes(needle));
-      return (
-        textMatch &&
-        (!muscle || item.muscle_group === muscle) &&
-        (!equipment || item.equipment === equipment) &&
-        (!category || item.category === category)
-      );
-    };
-    return { custom: custom.filter(match), shared: shared.filter(match) };
-  }, [custom, shared, query, muscle, equipment, category]);
+  function onSearch(value: string) {
+    const starting = query.trim().length === 0 && value.trim().length > 0;
+    setQuery(value);
+    if (starting) {
+      setMineOpen(true);
+      setLibraryOpen(true);
+    }
+  }
+
+  const filteredMine = useMemo(() => custom.filter((item) => matchesQuery(item, query)), [custom, query]);
+  const groupCounts = useMemo(() => {
+    const counts = new Map<BrowseGroup, number>(BROWSE_GROUPS.map((item) => [item, 0]));
+    counts.set("All", shared.length);
+    for (const exercise of shared) {
+      const browseGroup = browseGroupFor(exercise);
+      if (browseGroup) counts.set(browseGroup, (counts.get(browseGroup) ?? 0) + 1);
+    }
+    return counts;
+  }, [shared]);
+  const filteredShared = useMemo(
+    () => shared.filter((item) => matchesQuery(item, query) && inBrowseGroup(item, group)),
+    [shared, query, group],
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="space-y-2 sm:col-span-2 lg:col-span-1">
-          <Label htmlFor="exercise-search">Search</Label>
-          <Input
-            id="exercise-search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Name or cue"
-          />
-        </div>
-        <FilterSelect id="filter-muscle" label="Muscle group" value={muscle} options={muscles} onChange={setMuscle} />
-        <FilterSelect
-          id="filter-equipment"
-          label="Equipment"
-          value={equipment}
-          options={equipmentOptions}
-          onChange={setEquipment}
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="exercise-search">Search</Label>
+        <Input
+          id="exercise-search"
+          value={query}
+          onChange={(event) => onSearch(event.target.value)}
+          placeholder="Search exercises..."
         />
-        <FilterSelect id="filter-category" label="Category" value={category} options={categories} onChange={setCategory} />
       </div>
-      <ExerciseSection
-        title="My exercises"
-        note="Exercises you've created for your own programs."
-        empty={
-          query || muscle || equipment || category
-            ? "No exercises match those filters."
-            : "No personal exercises yet. Add one above, or type a new movement while building a workout."
-        }
-        items={filtered.custom}
-        suggestions={suggestions}
-        editable
-      />
-      <ExerciseSection
-        title="CoachFlow library"
-        empty={
-          query || muscle || equipment || category
-            ? "No shared exercises match those filters."
-            : "The shared library is empty."
-        }
-        items={filtered.shared}
-        note="Ready-to-use exercises included with CoachFlow. You can use them in a workout, but you can’t edit or delete them."
-      />
-    </div>
-  );
-}
-
-function FilterSelect({
-  id,
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <NativeSelect id={id} value={value} onChange={(event) => onChange(event.target.value)}>
-        <option value="">All</option>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </NativeSelect>
-    </div>
-  );
-}
-
-function ExerciseSection({
-  title,
-  empty,
-  items,
-  suggestions,
-  editable = false,
-  note,
-}: {
-  title: string;
-  empty: string;
-  items: LibraryExercise[];
-  suggestions?: FieldSuggestions;
-  editable?: boolean;
-  note?: string;
-}) {
-  return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">{title}</h2>
-          {note && <p className="mt-1 text-sm text-muted-foreground">{note}</p>}
-        </div>
-        <span className="rounded-full border border-border bg-muted px-2 py-1 text-xs text-muted-foreground">
-          {items.length}
-        </span>
-      </div>
-      {items.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">{empty}</CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-3">
-          {items.map((exercise) => (
-            <ExerciseCard key={exercise.id} exercise={exercise} editable={editable} suggestions={suggestions} />
+      <LibrarySection
+        title="My Exercises"
+        count={custom.length}
+        description="Exercises you've created for your own programs."
+        open={mineOpen}
+        onToggle={() => setMineOpen((current) => !current)}
+      >
+        <ExerciseList
+          items={filteredMine}
+          editable
+          suggestions={suggestions}
+          empty={
+            searching
+              ? "No personal exercises match that search."
+              : "No personal exercises yet. Add one above, or type a new movement while building a workout."
+          }
+        />
+      </LibrarySection>
+      <LibrarySection
+        title="CoachFlow Library"
+        count={shared.length}
+        description="Ready-to-use exercises included with CoachFlow."
+        open={libraryOpen}
+        onToggle={() => setLibraryOpen((current) => !current)}
+      >
+        <div className="flex flex-wrap gap-2">
+          {BROWSE_GROUPS.map((item) => (
+            <Button
+              key={item}
+              type="button"
+              size="sm"
+              variant={group === item ? "default" : "outline"}
+              onClick={() => setGroup(item)}
+            >
+              {item} ({groupCounts.get(item) ?? 0})
+            </Button>
           ))}
         </div>
-      )}
+        <ExerciseList
+          items={filteredShared}
+          empty={searching ? "No CoachFlow exercises match that search." : "No exercises in this group."}
+        />
+      </LibrarySection>
+    </div>
+  );
+}
+
+function LibrarySection({
+  title,
+  count,
+  description,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  count: number;
+  description: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-border">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        <span>
+          <span className="block font-medium text-foreground">
+            {title} ({count})
+          </span>
+          <span className="mt-1 block text-sm text-muted-foreground">{description}</span>
+        </span>
+        <span className="shrink-0 text-sm text-muted-foreground">{open ? "Collapse" : "Expand"}</span>
+      </button>
+      {open && <div className="space-y-3 border-t border-border px-4 py-4">{children}</div>}
     </section>
+  );
+}
+
+function ExerciseList({
+  items,
+  empty,
+  editable = false,
+  suggestions,
+}: {
+  items: LibraryExercise[];
+  empty: string;
+  editable?: boolean;
+  suggestions?: FieldSuggestions;
+}) {
+  if (items.length === 0) {
+    return <p className="text-sm text-muted-foreground">{empty}</p>;
+  }
+  return (
+    <div className="grid gap-3">
+      {items.map((exercise) => (
+        <ExerciseCard key={exercise.id} exercise={exercise} editable={editable} suggestions={suggestions} />
+      ))}
+    </div>
   );
 }
 
@@ -213,9 +218,7 @@ function ExerciseCard({
           </div>
         </div>
         {open && !editing && (
-          <p className="mt-3 text-sm text-muted-foreground">
-            {exercise.instructions?.trim() || "No instructions yet."}
-          </p>
+          <p className="mt-3 text-sm text-muted-foreground">{exercise.instructions?.trim() || "No instructions yet."}</p>
         )}
         {editing && suggestions && (
           <ExerciseEditor exercise={exercise} suggestions={suggestions} onDone={() => setEditing(false)} />
@@ -225,8 +228,30 @@ function ExerciseCard({
   );
 }
 
-function uniqueValues(items: LibraryExercise[], key: "muscle_group" | "equipment" | "category") {
-  return Array.from(new Set(items.map((item) => item[key]).filter((value): value is string => Boolean(value)))).sort(
-    (a, b) => a.localeCompare(b)
-  );
+function matchesQuery(item: LibraryExercise, query: string) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return [item.name, item.category, item.muscle_group, item.equipment, item.instructions]
+    .filter(Boolean)
+    .some((value) => value!.toLowerCase().includes(needle));
+}
+
+function browseGroupFor(exercise: LibraryExercise): Exclude<BrowseGroup, "All"> | null {
+  const muscle = exercise.muscle_group?.trim().toLowerCase() ?? "";
+  const category = exercise.category?.trim().toLowerCase() ?? "";
+  if (category === "conditioning" || category === "cardio") return "Conditioning";
+  if (muscle === "chest") return "Chest";
+  if (muscle === "back") return "Back";
+  if (muscle === "shoulders") return "Shoulders";
+  if (muscle === "biceps" || muscle === "triceps" || muscle === "forearms" || muscle === "arms") return "Arms";
+  if (["quads", "hamstrings", "glutes", "calves", "hips", "legs", "posterior chain"].includes(muscle)) {
+    return "Legs & Glutes";
+  }
+  if (muscle === "core" || category === "core") return "Core";
+  return null;
+}
+
+function inBrowseGroup(exercise: LibraryExercise, group: BrowseGroup) {
+  if (group === "All") return true;
+  return browseGroupFor(exercise) === group;
 }
