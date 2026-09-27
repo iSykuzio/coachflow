@@ -11,6 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
+const PASSWORD_USER_KEY = "cf_pw_uid";
+const DIFFERENT_ACCOUNT =
+  "This browser is signed in as a different account. Open the invitation link in a private window. No password was changed.";
+
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState("");
@@ -21,12 +25,16 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    const expectedId = sessionStorage.getItem(PASSWORD_USER_KEY);
     const supabase = createClient();
     let settled = false;
 
     function finish(sessionPresent: boolean) {
       if (settled && !sessionPresent) return;
-      if (sessionPresent) settled = true;
+      if (sessionPresent) {
+        settled = true;
+        setError(null);
+      }
       setHasSession(sessionPresent);
       setChecking(false);
     }
@@ -34,6 +42,20 @@ export default function ResetPasswordPage() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      if (expectedId) {
+        if (session?.user?.id === expectedId) finish(true);
+        else if (session?.user && session.user.id !== expectedId && !settled) {
+          setHasSession(false);
+          setChecking(false);
+          setError(DIFFERENT_ACCOUNT);
+        } else if (event === "INITIAL_SESSION" && !session) {
+          window.setTimeout(() => {
+            if (!settled) finish(false);
+          }, 800);
+        }
+        return;
+      }
+
       if (event === "PASSWORD_RECOVERY" || session) finish(true);
       if (event === "INITIAL_SESSION" && !session) {
         window.setTimeout(() => {
@@ -57,11 +79,15 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
     const supabase = createClient();
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) {
+    const expectedId = sessionStorage.getItem(PASSWORD_USER_KEY);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || (expectedId && user.id !== expectedId)) {
       setLoading(false);
       setHasSession(false);
-      setError("This reset link is invalid or has expired. Request a new one.");
+      setError(expectedId ? DIFFERENT_ACCOUNT : "This reset link is invalid or has expired. Request a new one.");
       return;
     }
 
@@ -74,14 +100,8 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user?.id ?? "")
-      .maybeSingle();
+    sessionStorage.removeItem(PASSWORD_USER_KEY);
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
 
     setLoading(false);
     router.push(homeForRole(profile?.role));
@@ -101,7 +121,7 @@ export default function ResetPasswordPage() {
       ) : !hasSession ? (
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            This reset link is invalid or has expired. Request a new one.
+            {error ?? "This reset link is invalid or has expired. Request a new one."}
           </p>
           <Link href="/forgot-password" className="text-sm text-accent hover:underline">
             Forgot password
