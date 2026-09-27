@@ -30,8 +30,11 @@ export async function GET(request: NextRequest) {
     }
 
     const requested = safeAppPath(searchParams.get("next"));
-    const recovery = searchParams.get("type") === "recovery" || requested === "/reset-password";
-    if (recovery) {
+    const setPassword =
+      searchParams.get("type") === "recovery" ||
+      searchParams.get("type") === "invite" ||
+      requested === "/reset-password";
+    if (setPassword) {
       destination = "/reset-password";
     } else {
       const allowed =
@@ -39,6 +42,15 @@ export async function GET(request: NextRequest) {
         (role === "client" && requested?.startsWith("/client"));
       destination = allowed && requested ? requested : homeForRole(role);
     }
+  }
+
+  if (!code) {
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Signing in…</title></head><body><p>Signing you in…</p><script>
+      window.location.replace("/auth/finish" + window.location.search + window.location.hash);
+    </script></body></html>`;
+    return new NextResponse(html, {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
   }
 
   return NextResponse.redirect(`${origin}${destination}`);

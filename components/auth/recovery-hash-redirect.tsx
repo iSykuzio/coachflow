@@ -16,7 +16,7 @@ export function RecoveryHashRedirect() {
     const hasCredential =
       hash.has("access_token") || query.has("code") || query.has("token_hash");
 
-    if (type !== "recovery" || !hasCredential) return;
+    if ((type !== "recovery" && type !== "invite") || !hasCredential) return;
 
     window.location.replace(`/reset-password${window.location.search}${window.location.hash}`);
   }, []);

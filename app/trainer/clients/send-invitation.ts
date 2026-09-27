@@ -64,10 +64,11 @@ export async function sendClientInvitation(input: {
     };
   }
 
-  const redirectTo = `${origin}/auth/callback?next=/client/dashboard`;
+  const inviteRedirect = `${origin}/auth/callback?next=/reset-password`;
+  const loginRedirect = `${origin}/auth/callback?next=/client/dashboard`;
   const invited = await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
     data: { role: "client", full_name: parsed.data.fullName },
-    redirectTo,
+    redirectTo: inviteRedirect,
   });
 
   if (!invited.error) {
@@ -88,7 +89,7 @@ export async function sendClientInvitation(input: {
 
   const magic = await admin.auth.signInWithOtp({
     email: parsed.data.email,
-    options: { shouldCreateUser: false, emailRedirectTo: redirectTo },
+    options: { shouldCreateUser: false, emailRedirectTo: loginRedirect },
   });
 
   if (magic.error) {

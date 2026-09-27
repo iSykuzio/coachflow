@@ -45,6 +45,11 @@ export default function SignupPage() {
     setLoading(false);
 
     if (signUpError) {
+      const message = signUpError.message.toLowerCase();
+      if (message.includes("already") && (message.includes("registered") || message.includes("exists"))) {
+        setError("This email already has an account. Open the invitation email, or use Forgot password on the login page.");
+        return;
+      }
       setError(signUpError.message);
       return;
     }
