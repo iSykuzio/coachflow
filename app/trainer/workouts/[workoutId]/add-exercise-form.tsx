@@ -34,12 +34,22 @@ export function AddExerciseForm({
   const [weight, setWeight] = useState("");
   const [restSeconds, setRestSeconds] = useState("90");
   const [notes, setNotes] = useState("");
+  const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const needle = search.trim().toLowerCase();
+  const visible = exercises.filter((exercise) => !needle || exercise.name.toLowerCase().includes(needle));
+  const mine = visible.filter((exercise) => exercise.trainer_id);
+  const shared = visible.filter((exercise) => !exercise.trainer_id);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!visible.some((exercise) => exercise.id === exerciseId)) {
+      setError("Choose an exercise from the list.");
+      return;
+    }
 
     const parsed = workoutExerciseSchema.safeParse({
       exerciseId,
@@ -82,7 +92,7 @@ export function AddExerciseForm({
   if (exercises.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Add an exercise to your library first, then come back here.
+        Add a movement in the Exercise library first, then come back here.
       </p>
     );
   }
@@ -105,18 +115,40 @@ export function AddExerciseForm({
                 </div>
               )}
               <div className="space-y-2">
+                <Label htmlFor="line-search">Find an exercise</Label>
+                <Input
+                  id="line-search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search your library or CoachFlow"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="line-exercise">Exercise</Label>
                 <NativeSelect
                   id="line-exercise"
                   value={exerciseId}
                   onChange={(e) => setExerciseId(e.target.value)}
                 >
-                  {exercises.map((exercise) => (
-                    <option key={exercise.id} value={exercise.id}>
-                      {exercise.name}
-                      {exercise.trainer_id ? " (yours)" : ""}
-                    </option>
-                  ))}
+                  {visible.length === 0 && <option value="">No exercises match</option>}
+                  {mine.length > 0 && (
+                    <optgroup label="My exercises">
+                      {mine.map((exercise) => (
+                        <option key={exercise.id} value={exercise.id}>
+                          {exercise.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {shared.length > 0 && (
+                    <optgroup label="CoachFlow library">
+                      {shared.map((exercise) => (
+                        <option key={exercise.id} value={exercise.id}>
+                          {exercise.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </NativeSelect>
               </div>
               <div className="grid gap-4 sm:grid-cols-4">

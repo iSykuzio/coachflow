@@ -12,7 +12,7 @@ type ProfileSummary = {
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/trainer/dashboard", icon: "dashboard" },
   { label: "Clients", href: "/trainer/clients", icon: "users" },
-  { label: "Exercises", href: "/trainer/exercises", icon: "dumbbell" },
+  { label: "Exercise library", href: "/trainer/exercises", icon: "dumbbell" },
   { label: "Workouts", href: "/trainer/workouts", icon: "clipboard" },
   { label: "Messages", href: "/trainer/messages", icon: "messages" },
 ];

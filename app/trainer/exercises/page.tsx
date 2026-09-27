@@ -40,9 +40,12 @@ export default async function TrainerExercisesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Exercises</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Exercise Library</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your exercises are private to you. The CoachFlow library is shared and cannot be deleted.
+          Create and manage exercises you can reuse when building workouts.
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          An exercise is one movement. Combine them into a session on Workouts, then assign that workout to a client.
         </p>
       </div>
       <ExerciseForm />

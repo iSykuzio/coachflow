@@ -61,7 +61,10 @@ export default async function TrainerWorkoutsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Workouts</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Build templates, then assign them to active clients.
+          Build reusable workouts from your exercise library, then assign them to clients.
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          A workout is a full session. Exercises are the individual movements inside it.
         </p>
       </div>
 
@@ -70,31 +73,37 @@ export default async function TrainerWorkoutsPage() {
       {(workouts ?? []).length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No workouts yet. Create one, add exercises, then assign it.
+            No workouts yet. Create a session, add exercises from your library, then assign it.
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-3">
-          {(workouts ?? []).map((workout) => (
-            <Link
-              key={workout.id}
-              href={`/trainer/workouts/${workout.id}`}
-              className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <Card className="transition-colors hover:bg-secondary/40">
-                <CardContent className="flex items-center justify-between gap-4 py-4">
-                  <div>
-                    <p className="font-medium text-foreground">{workout.name}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {countByWorkout.get(workout.id) ?? 0} exercises
-                      {workout.description ? ` · ${workout.description}` : ""}
-                    </p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{formatDate(workout.updated_at)}</p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+          {(workouts ?? []).map((workout) => {
+            const count = countByWorkout.get(workout.id) ?? 0;
+            return (
+              <Link
+                key={workout.id}
+                href={`/trainer/workouts/${workout.id}`}
+                className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <Card className="transition-colors hover:bg-secondary/40">
+                  <CardContent className="flex items-center justify-between gap-4 py-4">
+                    <div>
+                      <p className="font-medium text-foreground">{workout.name}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {count} {count === 1 ? "exercise" : "exercises"}
+                        {workout.description ? ` · ${workout.description}` : ""}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-foreground">Edit</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{formatDate(workout.updated_at)}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

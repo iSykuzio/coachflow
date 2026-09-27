@@ -16,7 +16,13 @@ export function DeleteExerciseButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [confirming, setConfirming] = useState(false);
+
   async function handleDelete() {
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
     setError(null);
     setLoading(true);
     const supabase = createClient();
@@ -34,7 +40,7 @@ export function DeleteExerciseButton({
   return (
     <div className="shrink-0 text-right">
       <Button type="button" variant="ghost" size="sm" onClick={handleDelete} disabled={loading}>
-        {loading ? "Removing..." : "Remove"}
+        {loading ? "Removing..." : confirming ? "Confirm remove" : "Remove"}
       </Button>
       {error && (
         <p className="mt-1 max-w-[10rem] text-xs text-destructive" title={name}>

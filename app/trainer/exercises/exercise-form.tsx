@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { LibraryExercise } from "./exercise-library";
 
 export function ExerciseForm() {
   const router = useRouter();
@@ -78,7 +79,7 @@ export function ExerciseForm() {
 
     reset();
     setOpen(false);
-    setSuccess(`${parsed.data.name} added to your library.`);
+    setSuccess(`${parsed.data.name} added to My exercises.`);
     router.refresh();
   }
 
@@ -96,9 +97,7 @@ export function ExerciseForm() {
         </Button>
       </div>
 
-      {success && (
-        <div className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">{success}</div>
-      )}
+      {success && <div className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">{success}</div>}
 
       {open && (
         <Card>
@@ -107,65 +106,23 @@ export function ExerciseForm() {
               <div>
                 <h2 className="text-base font-semibold tracking-tight">New exercise</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Saved to your library. You can add it to workouts next.
+                  One movement, saved to My exercises. Add it to a workout later.
                 </p>
               </div>
-
-              {error && (
-                <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {error}
-                </div>
-              )}
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="exercise-name">Name</Label>
-                  <Input
-                    id="exercise-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Goblet squat"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="exercise-category">Category</Label>
-                  <Input
-                    id="exercise-category"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    placeholder="Strength"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="exercise-muscle">Muscle group</Label>
-                  <Input
-                    id="exercise-muscle"
-                    value={muscleGroup}
-                    onChange={(e) => setMuscleGroup(e.target.value)}
-                    placeholder="Quads"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="exercise-equipment">Equipment</Label>
-                  <Input
-                    id="exercise-equipment"
-                    value={equipment}
-                    onChange={(e) => setEquipment(e.target.value)}
-                    placeholder="Dumbbell"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="exercise-instructions">Instructions</Label>
-                  <Textarea
-                    id="exercise-instructions"
-                    value={instructions}
-                    onChange={(e) => setInstructions(e.target.value)}
-                    placeholder="Optional coaching cues"
-                    rows={3}
-                  />
-                </div>
-              </div>
-
+              {error && <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+              <ExerciseFields
+                idPrefix="new"
+                name={name}
+                category={category}
+                muscleGroup={muscleGroup}
+                equipment={equipment}
+                instructions={instructions}
+                onName={setName}
+                onCategory={setCategory}
+                onMuscleGroup={setMuscleGroup}
+                onEquipment={setEquipment}
+                onInstructions={setInstructions}
+              />
               <div className="flex justify-end">
                 <Button type="submit" disabled={loading}>
                   {loading ? "Saving..." : "Save exercise"}
@@ -175,6 +132,161 @@ export function ExerciseForm() {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+export function ExerciseEditor({
+  exercise,
+  onDone,
+}: {
+  exercise: LibraryExercise;
+  onDone: () => void;
+}) {
+  const router = useRouter();
+  const [name, setName] = useState(exercise.name);
+  const [category, setCategory] = useState(exercise.category ?? "");
+  const [muscleGroup, setMuscleGroup] = useState(exercise.muscle_group ?? "");
+  const [equipment, setEquipment] = useState(exercise.equipment ?? "");
+  const [instructions, setInstructions] = useState(exercise.instructions ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    const parsed = exerciseSchema.safeParse({
+      name,
+      category,
+      muscleGroup,
+      equipment,
+      instructions,
+    });
+    if (!parsed.success) {
+      setError(parsed.error.errors[0].message);
+      return;
+    }
+
+    setLoading(true);
+    const supabase = createClient();
+    const { error: updateError } = await supabase
+      .from("exercises")
+      .update({
+        name: parsed.data.name,
+        category: parsed.data.category || null,
+        muscle_group: parsed.data.muscleGroup || null,
+        equipment: parsed.data.equipment || null,
+        instructions: parsed.data.instructions || null,
+      })
+      .eq("id", exercise.id);
+    setLoading(false);
+
+    if (updateError) {
+      setError(updateError.message || "We couldn’t update that exercise.");
+      return;
+    }
+
+    onDone();
+    router.refresh();
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-4 space-y-4 border-t border-border pt-4">
+      {error && <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+      <ExerciseFields
+        idPrefix={exercise.id}
+        name={name}
+        category={category}
+        muscleGroup={muscleGroup}
+        equipment={equipment}
+        instructions={instructions}
+        onName={setName}
+        onCategory={setCategory}
+        onMuscleGroup={setMuscleGroup}
+        onEquipment={setEquipment}
+        onInstructions={setInstructions}
+      />
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? "Saving..." : "Save changes"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function ExerciseFields({
+  idPrefix,
+  name,
+  category,
+  muscleGroup,
+  equipment,
+  instructions,
+  onName,
+  onCategory,
+  onMuscleGroup,
+  onEquipment,
+  onInstructions,
+}: {
+  idPrefix: string;
+  name: string;
+  category: string;
+  muscleGroup: string;
+  equipment: string;
+  instructions: string;
+  onName: (value: string) => void;
+  onCategory: (value: string) => void;
+  onMuscleGroup: (value: string) => void;
+  onEquipment: (value: string) => void;
+  onInstructions: (value: string) => void;
+}) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={`${idPrefix}-name`}>Name</Label>
+        <Input id={`${idPrefix}-name`} value={name} onChange={(e) => onName(e.target.value)} placeholder="Goblet squat" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-category`}>Category</Label>
+        <Input
+          id={`${idPrefix}-category`}
+          value={category}
+          onChange={(e) => onCategory(e.target.value)}
+          placeholder="Strength"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-muscle`}>Primary muscle group</Label>
+        <Input
+          id={`${idPrefix}-muscle`}
+          value={muscleGroup}
+          onChange={(e) => onMuscleGroup(e.target.value)}
+          placeholder="Quads"
+        />
+      </div>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={`${idPrefix}-equipment`}>Equipment</Label>
+        <Input
+          id={`${idPrefix}-equipment`}
+          value={equipment}
+          onChange={(e) => onEquipment(e.target.value)}
+          placeholder="Dumbbell"
+        />
+      </div>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={`${idPrefix}-instructions`}>Instructions</Label>
+        <Textarea
+          id={`${idPrefix}-instructions`}
+          value={instructions}
+          onChange={(e) => onInstructions(e.target.value)}
+          placeholder="Optional coaching cues"
+          rows={3}
+        />
+      </div>
     </div>
   );
 }

@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils";
 import { AddExerciseForm } from "./add-exercise-form";
-import { RemoveExerciseButton } from "./remove-exercise-button";
+import { WorkoutLines } from "./workout-lines";
+import { DuplicateWorkoutButton, EditWorkoutForm } from "./workout-actions";
 import { AssignWorkoutForm } from "@/components/workouts/assign-workout-form";
 
 type WorkoutRow = {
@@ -132,44 +133,57 @@ export default async function TrainerWorkoutBuilderPage({
         ← Back to workouts
       </Link>
 
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{workout.name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {workout.description || "Add exercises, then assign this workout to an active client."}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{workout.name}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {workout.description || "Add movements from your exercise library, then assign this session to a client."}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <EditWorkoutForm workoutId={workout.id} name={workout.name} description={workout.description} />
+          <DuplicateWorkoutButton
+            name={workout.name}
+            description={workout.description}
+            lines={(lines ?? []).map((line) => ({
+              id: line.id,
+              order_index: line.order_index,
+              sets: line.sets,
+              reps: line.reps,
+              weight: line.weight,
+              rest_seconds: line.rest_seconds,
+              notes: line.notes,
+              exerciseId: line.exercise_id,
+              name: exerciseMap.get(line.exercise_id)?.name ?? "Exercise",
+            }))}
+          />
+        </div>
       </div>
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">
-          Exercises
+          Session
         </h2>
         {(lines ?? []).length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              No exercises yet. Add the first movement below.
+              No exercises yet. Add a movement from your library below.
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-3">
-            {(lines ?? []).map((line, index) => (
-              <Card key={line.id}>
-                <CardContent className="flex items-start justify-between gap-4 py-4">
-                  <div>
-                    <p className="font-medium text-foreground">
-                      {index + 1}. {exerciseMap.get(line.exercise_id)?.name ?? "Exercise"}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {line.sets} × {line.reps}
-                      {line.weight ? ` · ${line.weight}` : ""}
-                      {line.rest_seconds != null ? ` · ${line.rest_seconds}s rest` : ""}
-                    </p>
-                    {line.notes && <p className="mt-2 text-sm text-muted-foreground">{line.notes}</p>}
-                  </div>
-                  <RemoveExerciseButton lineId={line.id} />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <WorkoutLines
+            lines={(lines ?? []).map((line) => ({
+              id: line.id,
+              order_index: line.order_index,
+              sets: line.sets,
+              reps: line.reps,
+              weight: line.weight,
+              rest_seconds: line.rest_seconds,
+              notes: line.notes,
+              exerciseId: line.exercise_id,
+              name: exerciseMap.get(line.exercise_id)?.name ?? "Exercise",
+            }))}
+          />
         )}
         <AddExerciseForm
           workoutId={workout.id}
@@ -180,7 +194,7 @@ export default async function TrainerWorkoutBuilderPage({
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">
-          Assign
+          Assign to a client
         </h2>
         <AssignWorkoutForm
           defaultWorkoutId={workout.id}
