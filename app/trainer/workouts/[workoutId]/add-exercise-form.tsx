@@ -34,58 +34,16 @@ export function AddExerciseForm({
   const [weight, setWeight] = useState("");
   const [restSeconds, setRestSeconds] = useState("90");
   const [notes, setNotes] = useState("");
-  const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [library, setLibrary] = useState(exercises);
-  const needle = search.trim().toLowerCase();
-  const visible = library.filter((exercise) => !needle || exercise.name.toLowerCase().includes(needle));
-  const mine = visible.filter((exercise) => exercise.trainer_id);
-  const shared = visible.filter((exercise) => !exercise.trainer_id);
-  const exact = library.some((exercise) => exercise.name.toLowerCase() === needle);
-
-  async function createMovement() {
-    const typed = search.trim();
-    if (typed.length < 2) {
-      setError("Enter at least 2 characters to create an exercise.");
-      return;
-    }
-    const existing = library.find((exercise) => exercise.name.toLowerCase() === typed.toLowerCase());
-    if (existing) {
-      setExerciseId(existing.id);
-      return;
-    }
-    setError(null);
-    setLoading(true);
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      setError("Not authenticated");
-      return;
-    }
-    const { data, error: insertError } = await supabase
-      .from("exercises")
-      .insert({ trainer_id: user.id, name: typed, is_custom: true })
-      .select("id, name, trainer_id")
-      .single();
-    setLoading(false);
-    if (insertError || !data) {
-      setError(insertError?.message || "Couldn’t create that exercise.");
-      return;
-    }
-    setLibrary((current) => [...current, data].sort((a, b) => a.name.localeCompare(b.name)));
-    setExerciseId(data.id);
-    setSearch("");
-  }
+  const mine = exercises.filter((exercise) => exercise.trainer_id);
+  const shared = exercises.filter((exercise) => !exercise.trainer_id);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    if (!visible.some((exercise) => exercise.id === exerciseId) && !library.some((exercise) => exercise.id === exerciseId)) {
+    if (!exercises.some((exercise) => exercise.id === exerciseId)) {
       setError("Choose an exercise from the list.");
       return;
     }
@@ -146,27 +104,13 @@ export function AddExerciseForm({
                 </div>
               )}
               <div className="space-y-2">
-                <Label htmlFor="line-search">Find an exercise</Label>
-                <Input
-                  id="line-search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search your library or type a new movement"
-                />
-              </div>
-              {needle.length >= 2 && !exact && (
-                <Button type="button" variant="outline" onClick={createMovement} disabled={loading}>
-                  + Create “{search.trim()}”
-                </Button>
-              )}
-              <div className="space-y-2">
                 <Label htmlFor="line-exercise">Exercise</Label>
                 <NativeSelect
                   id="line-exercise"
                   value={exerciseId}
                   onChange={(e) => setExerciseId(e.target.value)}
                 >
-                  {visible.length === 0 && <option value="">No exercises match</option>}
+                  {exercises.length === 0 && <option value="">No exercises yet</option>}
                   {mine.length > 0 && (
                     <optgroup label="My exercises">
                       {mine.map((exercise) => (
