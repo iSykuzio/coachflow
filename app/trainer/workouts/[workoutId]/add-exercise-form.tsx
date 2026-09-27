@@ -37,16 +37,55 @@ export function AddExerciseForm({
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [library, setLibrary] = useState(exercises);
   const needle = search.trim().toLowerCase();
-  const visible = exercises.filter((exercise) => !needle || exercise.name.toLowerCase().includes(needle));
+  const visible = library.filter((exercise) => !needle || exercise.name.toLowerCase().includes(needle));
   const mine = visible.filter((exercise) => exercise.trainer_id);
   const shared = visible.filter((exercise) => !exercise.trainer_id);
+  const exact = library.some((exercise) => exercise.name.toLowerCase() === needle);
+
+  async function createMovement() {
+    const typed = search.trim();
+    if (typed.length < 2) {
+      setError("Enter at least 2 characters to create an exercise.");
+      return;
+    }
+    const existing = library.find((exercise) => exercise.name.toLowerCase() === typed.toLowerCase());
+    if (existing) {
+      setExerciseId(existing.id);
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setLoading(false);
+      setError("Not authenticated");
+      return;
+    }
+    const { data, error: insertError } = await supabase
+      .from("exercises")
+      .insert({ trainer_id: user.id, name: typed, is_custom: true })
+      .select("id, name, trainer_id")
+      .single();
+    setLoading(false);
+    if (insertError || !data) {
+      setError(insertError?.message || "Couldn’t create that exercise.");
+      return;
+    }
+    setLibrary((current) => [...current, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setExerciseId(data.id);
+    setSearch("");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    if (!visible.some((exercise) => exercise.id === exerciseId)) {
+    if (!visible.some((exercise) => exercise.id === exerciseId) && !library.some((exercise) => exercise.id === exerciseId)) {
       setError("Choose an exercise from the list.");
       return;
     }
@@ -89,14 +128,6 @@ export function AddExerciseForm({
     router.refresh();
   }
 
-  if (exercises.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Add a movement in the Exercise library first, then come back here.
-      </p>
-    );
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -120,9 +151,14 @@ export function AddExerciseForm({
                   id="line-search"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search your library or CoachFlow"
+                  placeholder="Search your library or type a new movement"
                 />
               </div>
+              {needle.length >= 2 && !exact && (
+                <Button type="button" variant="outline" onClick={createMovement} disabled={loading}>
+                  + Create “{search.trim()}”
+                </Button>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="line-exercise">Exercise</Label>
                 <NativeSelect

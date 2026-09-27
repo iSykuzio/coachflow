@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils";
-import { CreateWorkoutForm } from "./create-workout-form";
+import { SessionBuilder } from "./session-builder";
 
 type WorkoutRow = {
   id: string;
@@ -12,9 +12,15 @@ type WorkoutRow = {
   updated_at: string;
 };
 
-type WorkoutExerciseCount = {
-  workout_id: string;
+type LibraryExercise = {
+  id: string;
+  name: string;
+  trainer_id: string | null;
 };
+
+type ClientLink = { client_id: string };
+type ProfileRow = { id: string; full_name: string | null };
+type WorkoutExerciseCount = { workout_id: string };
 
 export default async function TrainerWorkoutsPage() {
   const supabase = createClient();
@@ -24,12 +30,26 @@ export default async function TrainerWorkoutsPage() {
 
   if (!user) redirect("/login");
 
-  const { data: workouts, error } = await supabase
-    .from("workouts")
-    .select("id, name, description, updated_at")
-    .eq("trainer_id", user.id)
-    .order("updated_at", { ascending: false })
-    .overrideTypes<WorkoutRow[], { merge: false }>();
+  const [{ data: workouts, error }, { data: exerciseRows }, { data: clientLinks }] = await Promise.all([
+    supabase
+      .from("workouts")
+      .select("id, name, description, updated_at")
+      .eq("trainer_id", user.id)
+      .order("updated_at", { ascending: false })
+      .overrideTypes<WorkoutRow[], { merge: false }>(),
+    supabase
+      .from("exercises")
+      .select("id, name, trainer_id")
+      .or(`trainer_id.is.null,trainer_id.eq.${user.id}`)
+      .order("name")
+      .overrideTypes<LibraryExercise[], { merge: false }>(),
+    supabase
+      .from("trainer_clients")
+      .select("client_id")
+      .eq("trainer_id", user.id)
+      .eq("status", "active")
+      .overrideTypes<ClientLink[], { merge: false }>(),
+  ]);
 
   if (error) {
     return (
@@ -56,19 +76,30 @@ export default async function TrainerWorkoutsPage() {
     }
   }
 
+  const clientIds = (clientLinks ?? []).map((link) => link.client_id);
+  let clients: { id: string; name: string }[] = [];
+  if (clientIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", clientIds)
+      .overrideTypes<ProfileRow[], { merge: false }>();
+    clients = (profiles ?? []).map((profile) => ({ id: profile.id, name: profile.full_name ?? "Client" }));
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Workouts</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Build reusable workouts from your exercise library, then assign them to clients.
+          Build a complete session here. Search movements, add as many as you need, then save or assign the whole workout.
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
           A workout is a full session. Exercises are the individual movements inside it.
         </p>
       </div>
 
-      <CreateWorkoutForm />
+      <SessionBuilder exercises={exerciseRows ?? []} clients={clients} />
 
       {(workouts ?? []).length === 0 ? (
         <Card>
