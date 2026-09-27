@@ -9,9 +9,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CATEGORY_SUGGESTIONS, EQUIPMENT_SUGGESTIONS, MUSCLE_SUGGESTIONS } from "./suggestions";
 import type { LibraryExercise } from "./exercise-library";
 
-export function ExerciseForm() {
+export type FieldSuggestions = {
+  categories: string[];
+  muscles: string[];
+  equipment: string[];
+};
+
+const fallbackSuggestions: FieldSuggestions = {
+  categories: CATEGORY_SUGGESTIONS,
+  muscles: MUSCLE_SUGGESTIONS,
+  equipment: EQUIPMENT_SUGGESTIONS,
+};
+
+export function ExerciseForm({ suggestions = fallbackSuggestions }: { suggestions?: FieldSuggestions }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -112,6 +125,7 @@ export function ExerciseForm() {
               {error && <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
               <ExerciseFields
                 idPrefix="new"
+                suggestions={suggestions}
                 name={name}
                 category={category}
                 muscleGroup={muscleGroup}
@@ -138,9 +152,11 @@ export function ExerciseForm() {
 
 export function ExerciseEditor({
   exercise,
+  suggestions = fallbackSuggestions,
   onDone,
 }: {
   exercise: LibraryExercise;
+  suggestions?: FieldSuggestions;
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -196,6 +212,7 @@ export function ExerciseEditor({
       {error && <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
       <ExerciseFields
         idPrefix={exercise.id}
+        suggestions={suggestions}
         name={name}
         category={category}
         muscleGroup={muscleGroup}
@@ -221,6 +238,7 @@ export function ExerciseEditor({
 
 function ExerciseFields({
   idPrefix,
+  suggestions,
   name,
   category,
   muscleGroup,
@@ -233,6 +251,7 @@ function ExerciseFields({
   onInstructions,
 }: {
   idPrefix: string;
+  suggestions: FieldSuggestions;
   name: string;
   category: string;
   muscleGroup: string;
@@ -250,31 +269,27 @@ function ExerciseFields({
         <Label htmlFor={`${idPrefix}-name`}>Name</Label>
         <Input id={`${idPrefix}-name`} value={name} onChange={(e) => onName(e.target.value)} placeholder="Goblet squat" />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-category`}>Category</Label>
-        <Input
-          id={`${idPrefix}-category`}
-          value={category}
-          onChange={(e) => onCategory(e.target.value)}
-          placeholder="Strength"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-muscle`}>Primary muscle group</Label>
-        <Input
-          id={`${idPrefix}-muscle`}
-          value={muscleGroup}
-          onChange={(e) => onMuscleGroup(e.target.value)}
-          placeholder="Quads"
-        />
-      </div>
-      <div className="space-y-2 sm:col-span-2">
-        <Label htmlFor={`${idPrefix}-equipment`}>Equipment</Label>
-        <Input
+      <SuggestField
+        id={`${idPrefix}-category`}
+        label="Category"
+        value={category}
+        suggestions={suggestions.categories}
+        onChange={onCategory}
+      />
+      <SuggestField
+        id={`${idPrefix}-muscle`}
+        label="Primary muscle group"
+        value={muscleGroup}
+        suggestions={suggestions.muscles}
+        onChange={onMuscleGroup}
+      />
+      <div className="sm:col-span-2">
+        <SuggestField
           id={`${idPrefix}-equipment`}
+          label="Equipment"
           value={equipment}
-          onChange={(e) => onEquipment(e.target.value)}
-          placeholder="Dumbbell"
+          suggestions={suggestions.equipment}
+          onChange={onEquipment}
         />
       </div>
       <div className="space-y-2 sm:col-span-2">
@@ -287,6 +302,56 @@ function ExerciseFields({
           rows={3}
         />
       </div>
+    </div>
+  );
+}
+
+function SuggestField({
+  id,
+  label,
+  value,
+  suggestions,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  suggestions: string[];
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const needle = value.trim().toLowerCase();
+  const matches = suggestions
+    .filter((item) => !needle || item.toLowerCase().includes(needle))
+    .slice(0, 8);
+  const exact = suggestions.some((item) => item.toLowerCase() === needle);
+  const showAdd = needle.length >= 2 && !exact;
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={() => setOpen(true)}
+        placeholder="Choose or type your own"
+        autoComplete="off"
+      />
+      {open && (matches.length > 0 || showAdd) && (
+        <div className="flex flex-wrap gap-2">
+          {matches.map((item) => (
+            <Button key={item} type="button" size="sm" variant="outline" onClick={() => { onChange(item); setOpen(false); }}>
+              {item}
+            </Button>
+          ))}
+          {showAdd && (
+            <Button type="button" size="sm" variant="outline" onClick={() => { onChange(value.trim()); setOpen(false); }}>
+              Add “{value.trim()}”
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

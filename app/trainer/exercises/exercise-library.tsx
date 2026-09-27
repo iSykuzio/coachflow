@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { DeleteExerciseButton } from "./delete-exercise-button";
-import { ExerciseEditor } from "./exercise-form";
+import { ExerciseEditor, type FieldSuggestions } from "./exercise-form";
 
 export type LibraryExercise = {
   id: string;
@@ -21,9 +21,11 @@ export type LibraryExercise = {
 export function ExerciseLibrary({
   custom,
   shared,
+  suggestions,
 }: {
   custom: LibraryExercise[];
   shared: LibraryExercise[];
+  suggestions: FieldSuggestions;
 }) {
   const [query, setQuery] = useState("");
   const [muscle, setMuscle] = useState("");
@@ -76,12 +78,14 @@ export function ExerciseLibrary({
       </div>
       <ExerciseSection
         title="My exercises"
+        note="Exercises you've created for your own programs."
         empty={
           query || muscle || equipment || category
             ? "No exercises match those filters."
-            : "No exercises yet. Add one movement above, then use it in a workout."
+            : "No personal exercises yet. Add one above, or type a new movement while building a workout."
         }
         items={filtered.custom}
+        suggestions={suggestions}
         editable
       />
       <ExerciseSection
@@ -92,7 +96,7 @@ export function ExerciseLibrary({
             : "The shared library is empty."
         }
         items={filtered.shared}
-        note="Shared exercises are read-only. You can add them to workouts, but you can’t edit or delete them."
+        note="Ready-to-use exercises included with CoachFlow. You can use them in a workout, but you can’t edit or delete them."
       />
     </div>
   );
@@ -130,12 +134,14 @@ function ExerciseSection({
   title,
   empty,
   items,
+  suggestions,
   editable = false,
   note,
 }: {
   title: string;
   empty: string;
   items: LibraryExercise[];
+  suggestions?: FieldSuggestions;
   editable?: boolean;
   note?: string;
 }) {
@@ -157,7 +163,7 @@ function ExerciseSection({
       ) : (
         <div className="grid gap-3">
           {items.map((exercise) => (
-            <ExerciseCard key={exercise.id} exercise={exercise} editable={editable} />
+            <ExerciseCard key={exercise.id} exercise={exercise} editable={editable} suggestions={suggestions} />
           ))}
         </div>
       )}
@@ -165,7 +171,15 @@ function ExerciseSection({
   );
 }
 
-function ExerciseCard({ exercise, editable }: { exercise: LibraryExercise; editable: boolean }) {
+function ExerciseCard({
+  exercise,
+  editable,
+  suggestions,
+}: {
+  exercise: LibraryExercise;
+  editable: boolean;
+  suggestions?: FieldSuggestions;
+}) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const details = [exercise.category, exercise.muscle_group, exercise.equipment].filter(Boolean).join(" · ");
@@ -203,7 +217,9 @@ function ExerciseCard({ exercise, editable }: { exercise: LibraryExercise; edita
             {exercise.instructions?.trim() || "No instructions yet."}
           </p>
         )}
-        {editing && <ExerciseEditor exercise={exercise} onDone={() => setEditing(false)} />}
+        {editing && suggestions && (
+          <ExerciseEditor exercise={exercise} suggestions={suggestions} onDone={() => setEditing(false)} />
+        )}
       </CardContent>
     </Card>
   );

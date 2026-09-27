@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { ExerciseForm } from "./exercise-form";
 import { ExerciseLibrary, type LibraryExercise } from "./exercise-library";
+import { CATEGORY_SUGGESTIONS, EQUIPMENT_SUGGESTIONS, MUSCLE_SUGGESTIONS, mergeSuggestions } from "./suggestions";
 
 type ExerciseRow = LibraryExercise & {
   is_custom: boolean;
@@ -36,20 +37,22 @@ export default async function TrainerExercisesPage() {
 
   const shared = (exercises ?? []).filter((item) => item.trainer_id === null);
   const custom = (exercises ?? []).filter((item) => item.trainer_id === user.id);
+  const suggestions = {
+    categories: mergeSuggestions(CATEGORY_SUGGESTIONS, (exercises ?? []).map((item) => item.category)),
+    muscles: mergeSuggestions(MUSCLE_SUGGESTIONS, (exercises ?? []).map((item) => item.muscle_group)),
+    equipment: mergeSuggestions(EQUIPMENT_SUGGESTIONS, (exercises ?? []).map((item) => item.equipment)),
+  };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Exercise Library</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Exercise library</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Create and manage exercises you can reuse when building workouts.
-        </p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          An exercise is one movement. Combine them into a session on Workouts, then assign that workout to a client.
+          CoachFlow Library is ready to use in any workout. My Exercises is for movements you create yourself.
         </p>
       </div>
-      <ExerciseForm />
-      <ExerciseLibrary custom={custom} shared={shared} />
+      <ExerciseForm suggestions={suggestions} />
+      <ExerciseLibrary custom={custom} shared={shared} suggestions={suggestions} />
     </div>
   );
 }

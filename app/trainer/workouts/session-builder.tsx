@@ -348,7 +348,7 @@ function DraftExercise({
                 variant="outline"
                 onClick={() => onChange({ name: item.name })}
               >
-                {item.name}
+                {item.trainer_id ? "My exercise" : "CoachFlow"} · {item.name}
               </Button>
             ))}
           </div>
